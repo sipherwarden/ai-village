@@ -25,6 +25,21 @@ in a browser against a throwaway hub with the Simulation Lab on, plus `npm run t
 - **Layouts** checked by viewport emulation: desktop 1280×800, iPad portrait 820×1180 (tab bar,
   bottom-sheet inspector), iPhone 375×812 (tab bar, status deck, compact badges).
 
+## Cosmetics and shop (tested)
+
+- Characters: Sentinel, Alchemist, Conductor and Wisp join the original five; 20 accessories
+  (10 new: party hat, halo, top hat, wizard hat, cat ears, flower crown, bow tie, cape, backpack,
+  jetpack); 12 emotes with face changes and icons; idle fidgets (off with reduce motion).
+- Islands: Nocturne, Sakura, Glacier, Ember, Verdant, each with its own stone, foliage, water or
+  lava, sky and particles (petals, snow, embers, fireflies).
+- Shop with three deterministic daily deals. Purchase flow tested end to end with the shop
+  server in fake-payment mode: checkout, return, signed receipt, hub verification, unlock. Locked
+  islands, characters and accessories are refused by the hub. Receipt tests cover forged,
+  tampered, wrong-key and other-install receipts.
+- **Not tested against real Stripe**: needs your Stripe test key and a deployed shop server
+  (see docs/SHOP.md). `shop.config.json` is empty, so this build is browse-only until then.
+- Liquid Glass styling across the HUD, drawers, shop, badges and controls.
+
 ## Implemented, not fully verified
 
 - **Handoff packets** travel the conduits on `handoff` events (seen in the world lab; not yet

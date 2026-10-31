@@ -12,6 +12,7 @@ import { STATE_LABEL } from '../lib/format.ts';
 import { VillageRuntime, type AgentView } from '../engine/runtime.ts';
 import { useLayout } from './ui.tsx';
 import type { TimeOfDay } from '../engine/world.ts';
+import type { Emote, Island } from '../../../shared/cosmetics.ts';
 
 export type Quality = 'high' | 'balanced' | 'saver';
 export interface Insets {
@@ -106,6 +107,7 @@ export function Village3D({
   insets,
   kiosk = false,
   quality,
+  island = 'nocturne',
 }: {
   onSelect: (id: string | null) => void;
   selectedId: string | null;
@@ -114,6 +116,7 @@ export function Village3D({
   insets: Insets;
   kiosk?: boolean;
   quality: Quality;
+  island?: Island;
 }) {
   const agents = useStore((s) => s.snapshot?.agents ?? NO_AGENTS);
   const live = useStore((s) => s.snapshot?.live ?? NO_LIVE);
@@ -166,7 +169,7 @@ export function Village3D({
         aria-label="Village view"
       >
         <PerformanceMonitor onDecline={() => setDpr((d) => Math.max(1, d - 0.25))} flipflops={3} />
-        <Scene views={views} selectedId={selectedId} onSelect={onSelect} period={period} insets={insets} quality={quality} reduceMotion={reduceMotion} kiosk={kiosk} badges={badges} runtimeRef={runtime} onReady={() => setReady(true)} />
+        <Scene views={views} selectedId={selectedId} onSelect={onSelect} period={period} insets={insets} quality={quality} reduceMotion={reduceMotion} kiosk={kiosk} badges={badges} runtimeRef={runtime} onReady={() => setReady(true)} island={island} />
         <Reflections />
         <EffectComposer multisampling={quality === 'saver' ? 0 : 4} resolutionScale={quality === 'saver' ? 0.75 : 1}>
           <Bloom luminanceThreshold={0.82} luminanceSmoothing={0.2} intensity={kiosk ? 0.55 : 0.7} mipmapBlur radius={0.72} />
@@ -236,6 +239,7 @@ function Scene({
   badges,
   runtimeRef,
   onReady,
+  island,
 }: {
   views: AgentView[];
   selectedId: string | null;
@@ -248,6 +252,7 @@ function Scene({
   badges: MutableRefObject<Map<string, HTMLElement>>;
   runtimeRef: MutableRefObject<VillageRuntime | null>;
   onReady: () => void;
+  island: Island;
 }) {
   const { scene, camera, size, gl } = useThree();
   const [rt, setRt] = useState<VillageRuntime | null>(null);
@@ -259,7 +264,8 @@ function Scene({
 
   // The world lives in an effect so StrictMode's double mount never leaves a stray copy behind.
   useEffect(() => {
-    const r = new VillageRuntime({ shadows: quality === 'high' ? 'high' : quality === 'balanced' ? 'low' : 'off', particles: quality !== 'saver' && !reduceMotion });
+    const r = new VillageRuntime({ shadows: quality === 'high' ? 'high' : quality === 'balanced' ? 'low' : 'off', particles: quality !== 'saver' && !reduceMotion, island });
+    r.setLively(!reduceMotion);
     setRt(r);
     runtimeRef.current = r;
     scene.fog = r.world.fog;
@@ -268,7 +274,17 @@ function Scene({
       runtimeRef.current = null;
       r.dispose();
     };
-  }, [scene, quality, reduceMotion, runtimeRef]);
+  }, [scene, quality, reduceMotion, runtimeRef, island]);
+
+  // Emotes requested from the inspector.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ id: string; kind: Emote }>).detail;
+      rt?.emote(d.id, d.kind);
+    };
+    window.addEventListener('av:emote', on);
+    return () => window.removeEventListener('av:emote', on);
+  }, [rt]);
 
   useEffect(() => {
     gl.shadowMap.enabled = quality !== 'saver';

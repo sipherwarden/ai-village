@@ -9,6 +9,8 @@ import { atelier, forge, hexPad, nexus, observatory, spire, type Building, type 
 import { buildTerrain, FACE_CAMERA, ISLAND_ROTATION, LAYOUT, type Site } from './terrain.ts';
 import { IDENTITY } from './creature.ts';
 import { materials } from './materials.ts';
+import { applyTheme, THEMES, type Theme } from './themes.ts';
+import type { Island } from '../../../shared/cosmetics.ts';
 
 export type SlotKind = Exclude<Archetype, 'sprite'> | 'pad' | 'plaza';
 export type TimeOfDay = 'dawn' | 'day' | 'dusk' | 'night';
@@ -57,6 +59,7 @@ const LOOKS: Record<TimeOfDay, Look> = {
 export interface WorldOptions {
   shadows: 'high' | 'low' | 'off';
   particles: boolean;
+  island?: Island;
 }
 
 export class World {
@@ -85,8 +88,18 @@ export class World {
   private tmpA = new THREE.Color();
   private owned: (THREE.BufferGeometry | THREE.Material)[] = [];
   readonly fog = new THREE.Fog('#060914', 48, 120);
+  private theme: Theme;
+  private looks: Record<TimeOfDay, Look>;
 
   constructor(opts: WorldOptions) {
+    this.theme = THEMES[opts.island ?? 'nocturne'] ?? THEMES.nocturne;
+    applyTheme(this.theme);
+    this.looks = { night: { ...LOOKS.night }, dusk: { ...LOOKS.dusk }, dawn: { ...LOOKS.dawn }, day: { ...LOOKS.day } };
+    [this.looks.night.skyTop, this.looks.night.skyMid, this.looks.night.skyBottom] = this.theme.sky;
+    this.lanternGlow.emissive.set(this.theme.lantern);
+    this.lanternPool.color.set(this.theme.lantern);
+    this.water.uniforms.uGlow.value.set(this.theme.waterGlow);
+    this.fall.uniforms.uColor.value.set(this.theme.fall);
     this.root.add(this.sky.mesh, this.starField.points, this.bokehField.group, this.hazeField.group);
     this.island.rotation.y = ISLAND_ROTATION;
     this.root.add(this.island);
@@ -139,7 +152,7 @@ export class World {
       this.mist.push(mist);
       this.island.add(mist);
     }
-    this.bounce = new THREE.PointLight('#06B6D4', 3, 7, 1.6);
+    this.bounce = new THREE.PointLight(this.theme.waterGlow, 3, 7, 1.6);
     this.bounce.position.set(LAYOUT.pool.x, 0.7, LAYOUT.pool.y);
     this.island.add(this.bounce);
 
@@ -159,7 +172,7 @@ export class World {
     LAYOUT.pads.forEach((site, i) => this.addSlot(`pad-${i}`, 'pad', hexPad(), site));
 
     if (opts.particles) {
-      this.moteField = motes();
+      this.moteField = motes(this.theme.particles);
       this.root.add(this.moteField.points);
     }
   }
@@ -289,7 +302,7 @@ export class World {
 
   update(dt: number, t: number, residents: Map<Slot, Resident>, activity: number) {
     // time-of-day crossfade
-    const goal = LOOKS[this.target];
+    const goal = this.looks[this.target];
     const k = Math.min(1, dt * 0.8);
     const L = this.look;
     for (const key of ['skyTop', 'skyMid', 'skyBottom', 'hemiSky', 'hemiGround', 'key', 'rim', 'water', 'fog'] as const) L[key] = `#${this.tmpA.set(L[key]).lerp(new THREE.Color(goal[key]), k).getHexString()}`;
@@ -309,7 +322,7 @@ export class World {
     this.fog.color.set(L.fog);
     this.starField.mat.uniforms.uOpacity.value = L.stars;
     this.starField.mat.uniforms.uTime.value = t;
-    this.water.uniforms.uDeep.value.set(L.water);
+    this.water.uniforms.uDeep.value.set(L.water).lerp(this.tmpA.set(this.theme.water), 0.75);
     this.water.uniforms.uTime.value = t;
     this.water.uniforms.uSpark.value = 0.4 + L.lamps * 0.6;
     this.fall.uniforms.uTime.value = t;
@@ -336,7 +349,7 @@ export class World {
       const active = r.state === 'WORKING' || r.state === 'THINKING';
       const goalLevel = r.state ? (active ? 1.25 : r.state === 'OFFLINE' ? 0.25 : 0.6) : 0.15;
       u.uLevel.value += (goalLevel - u.uLevel.value) * Math.min(1, dt * 2);
-      u.uColor.value.set('#9be7ff').lerp(r.accent, r.state ? 0.35 : 0);
+      u.uColor.value.set(this.theme.conduit).lerp(r.accent, r.state ? 0.35 : 0);
     }
     this.spire.update(dt, t, activity);
 

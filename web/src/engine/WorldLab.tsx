@@ -11,6 +11,7 @@ import type { AgentState, Archetype } from '../../../shared/types.ts';
 import { IDENTITY } from './creature.ts';
 import { VillageRuntime } from './runtime.ts';
 import type { TimeOfDay } from './world.ts';
+import { ISLAND_IDS, type Island } from '../../../shared/cosmetics.ts';
 
 const CAST: { id: string; archetype: Archetype; color: string; state: AgentState }[] = [
   { id: 'gemini', archetype: 'explorer', color: IDENTITY.explorer.primary, state: 'WORKING' },
@@ -21,15 +22,15 @@ const CAST: { id: string; archetype: Archetype; color: string; state: AgentState
   { id: 'prism', archetype: 'sprite', color: '#06B6D4', state: 'OFFLINE' },
 ];
 
-function Village({ tod }: { tod: TimeOfDay }) {
+function Village({ tod, island }: { tod: TimeOfDay; island: Island }) {
   const scene = useThree((s) => s.scene);
   const [rt, setRt] = useState<VillageRuntime | null>(null);
   useEffect(() => {
-    const r = new VillageRuntime({ shadows: 'high', particles: true });
+    const r = new VillageRuntime({ shadows: 'high', particles: true, island });
     r.sync(CAST);
     setRt(r);
     return () => r.dispose();
-  }, []);
+  }, [island]);
   useEffect(() => {
     if (!rt) return;
     scene.fog = rt.world.fog;
@@ -69,6 +70,7 @@ function Reflections() {
 export function WorldLab() {
   const params = new URLSearchParams(location.search);
   const [tod, setTod] = useState<TimeOfDay>((params.get('tod') as TimeOfDay) ?? 'night');
+  const [island, setIsland] = useState<Island>((params.get('island') as Island) ?? 'nocturne');
   const D = Number(params.get('d') ?? 36);
   const pitch = THREE.MathUtils.degToRad(Number(params.get('pitch') ?? 30));
   const target: [number, number, number] = [0, 0.2, 0.6];
@@ -77,7 +79,7 @@ export function WorldLab() {
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#060914' }}>
       <Canvas shadows="percentage" dpr={[1, 2]} camera={{ fov: 28, position: pos, near: 1, far: 400 }} gl={{ antialias: false, powerPreference: 'high-performance' }}>
-        <Village tod={tod} />
+        <Village tod={tod} island={island} />
         <Reflections />
         <OrbitControls target={target} enableDamping makeDefault />
         <EffectComposer multisampling={4}>
@@ -90,6 +92,10 @@ export function WorldLab() {
         <span style={{ font: '700 12px/1 Inter, system-ui', letterSpacing: '0.14em', color: '#e2e8f0', marginRight: 8 }}>WORLD LAB · SIMULATED CAST</span>
         {(['night', 'dusk', 'dawn', 'day'] as TimeOfDay[]).map((t) => (
           <button key={t} style={btn(tod === t)} onClick={() => setTod(t)}>{t}</button>
+        ))}
+        <span style={{ width: 10 }} />
+        {ISLAND_IDS.map((i) => (
+          <button key={i} style={btn(island === i)} onClick={() => setIsland(i)}>{i}</button>
         ))}
       </div>
     </div>

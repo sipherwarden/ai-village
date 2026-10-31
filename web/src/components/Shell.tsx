@@ -3,7 +3,7 @@
 // phones, a tab bar with a deck of agent status cards. Everything hugs the perimeter so the village
 // keeps the screen. Every number shown is measured or counted from real events.
 
-import { Activity, Bell, ChevronRight, Expand, FlaskConical, ListChecks, Map as MapIcon, Radio, Settings, Users } from 'lucide-react';
+import { Activity, Bell, ChevronRight, Expand, FlaskConical, ListChecks, Map as MapIcon, Radio, Settings, ShoppingBag, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { AgentLive } from '../../../shared/types.ts';
 import { api } from '../lib/api.ts';
@@ -13,7 +13,7 @@ import { STATE_LABEL, ago } from '../lib/format.ts';
 import { AgentAvatar } from './Avatar.tsx';
 import { EVENT_META } from './EventRow.tsx';
 
-export type Section = 'village' | 'feed' | 'tasks' | 'agents' | 'settings';
+export type Section = 'village' | 'feed' | 'tasks' | 'agents' | 'shop' | 'settings';
 
 export function Logo({ size = 32 }: { size?: number }) {
   return (
@@ -119,6 +119,7 @@ export function IconRail({ section, onSection, onKiosk }: { section: Section; on
       <RailButton icon={<Activity size={19} />} label="Activity" current={section === 'feed'} onClick={() => onSection('feed')} />
       <RailButton icon={<ListChecks size={19} />} label="Tasks" current={section === 'tasks'} onClick={() => onSection('tasks')} />
       <RailButton icon={<Users size={19} />} label="Agents" current={section === 'agents'} onClick={() => onSection('agents')} />
+      <RailButton icon={<ShoppingBag size={19} />} label="Shop" current={section === 'shop'} onClick={() => onSection('shop')} />
       <RailButton icon={<Settings size={19} />} label="Settings" current={section === 'settings'} onClick={() => onSection('settings')} />
       <span className="mx-auto my-1 h-px w-6 bg-[var(--smoke-edge)]" />
       <RailButton icon={<Expand size={18} />} label="Kiosk mode" onClick={onKiosk} />
@@ -204,6 +205,7 @@ export function TabBar({ section, onSection }: { section: Section; onSection: (s
     { id: 'feed', label: 'Activity', icon: <Activity size={19} /> },
     { id: 'tasks', label: 'Tasks', icon: <ListChecks size={19} /> },
     { id: 'agents', label: 'Agents', icon: <Users size={19} /> },
+    { id: 'shop', label: 'Shop', icon: <ShoppingBag size={19} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={19} /> },
   ];
   return (

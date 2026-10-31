@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { Accessory, AgentState, Archetype } from '../../../shared/types.ts';
 import { Creature } from './creature.ts';
 import { World, type Resident, type Slot, type WorldOptions } from './world.ts';
+import type { Emote } from '../../../shared/cosmetics.ts';
 
 export interface AgentView {
   id: string;
@@ -58,6 +59,7 @@ export class VillageRuntime {
         holder.add(creature.group);
         this.world.island.add(holder);
         creature.setState(a.state, true);
+        creature.setLively(this.lively);
         m = { view: a, creature, holder, slot, accent: new THREE.Color(a.color) };
         this.cast.set(a.id, m);
       }
@@ -72,6 +74,18 @@ export class VillageRuntime {
     this.residents.clear();
     for (const m of this.cast.values()) this.residents.set(m.slot, { state: m.view.state, accent: m.accent });
   }
+
+  /** Plays an emote on one agent's character. */
+  emote(id: string, kind: Emote) {
+    this.cast.get(id)?.creature.play(kind);
+  }
+
+  /** Idle fidgets on or off for everyone (off for reduced motion). */
+  setLively(on: boolean) {
+    this.lively = on;
+    for (const m of this.cast.values()) m.creature.setLively(on);
+  }
+  private lively = true;
 
   setFocus(id: string | null) {
     this.focused = id;

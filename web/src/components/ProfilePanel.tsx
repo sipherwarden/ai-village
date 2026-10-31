@@ -6,6 +6,10 @@ import { store, useStore } from '../lib/store.ts';
 import { useNow } from '../lib/hooks.ts';
 import { CONNECTION_LABEL, ago, clock, compact, duration, providerName } from '../lib/format.ts';
 import { LivePortrait } from './Avatar.tsx';
+import { EMOTES } from '../../../shared/cosmetics.ts';
+import { isOwned, useShop } from '../lib/shop.ts';
+import { EMOTE_ICON } from './ShopView.tsx';
+import { Lock } from 'lucide-react';
 import { EventRow } from './EventRow.tsx';
 import { Empty, Markdown, Row, Sheet, StatePill, Toggle } from './ui.tsx';
 
@@ -37,7 +41,8 @@ const TABS: Tab[] = ['overview', 'activity', 'tasks', 'config'];
 const LEVEL = { live: ['Live', 'var(--st-online)'], partial: ['Partial', 'var(--st-waiting)'], none: ['Not available', 'var(--st-offline)'] } as const;
 
 /** The agent inspector: live portrait, then OVERVIEW / ACTIVITY / TASKS / CONFIG. */
-export function ProfilePanel({ agentId, onClose, onCustomize }: { agentId: string | null; onClose: () => void; onCustomize: (a: AgentConfig) => void }) {
+export function ProfilePanel({ agentId, onClose, onCustomize, onShop }: { agentId: string | null; onClose: () => void; onCustomize: (a: AgentConfig) => void; onShop: () => void }) {
+  const shop = useShop();
   const agent = useStore((s) => s.snapshot?.agents.find((a) => a.id === agentId));
   const live = useStore((s) => (agentId ? s.snapshot?.live[agentId] : undefined));
   const demo = useStore((s) => s.snapshot?.demo ?? false);
@@ -145,6 +150,27 @@ export function ProfilePanel({ agentId, onClose, onCustomize }: { agentId: strin
           {tab === 'overview' && (
             <>
               <p className="px-1 text-[13.5px] leading-relaxed text-ink-2">{agent.personality}</p>
+              <div className="section">
+                <div className="label mb-2">Emotes</div>
+                <div className="emote-row">
+                  {EMOTES.map((e) => {
+                    const owned = isOwned(shop, e.id);
+                    return (
+                      <button
+                        key={e.id}
+                        className="emote-btn"
+                        data-locked={!owned || undefined}
+                        title={owned ? `Play ${e.name}` : `${e.name} is in the shop`}
+                        onClick={() => (owned ? window.dispatchEvent(new CustomEvent('av:emote', { detail: { id: agent.id, kind: e.value } })) : onShop())}
+                      >
+                        {owned ? EMOTE_ICON[e.value as keyof typeof EMOTE_ICON] : <Lock />}
+                        {e.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-[11.5px] text-ink-3">Just for fun: emotes play in the village and never change the agent's reported state.</p>
+              </div>
               <div className="section">
                 <div className="label mb-1">Right now</div>
                 <Row label="Current task">{l.currentTask?.title ?? <span className="text-ink-3">None</span>}</Row>

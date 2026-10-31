@@ -10,9 +10,10 @@
 
 import * as THREE from 'three';
 import type { Accessory, AgentState, Archetype } from '../../../shared/types.ts';
-import { Face, glyphTexture, type Expr } from './face.ts';
+import type { Emote } from '../../../shared/cosmetics.ts';
+import { Face, glyphTexture, type Expr, type FaceStyle } from './face.ts';
 import { materials, withRim } from './materials.ts';
-import { chamferBox, damp, flatOutline, hashString, rng, sphereOutline, sphereScreen } from './util.ts';
+import { chamferBox, damp, ease, flatOutline, hashString, rng, sphereOutline, sphereScreen } from './util.ts';
 
 export interface CreatureOptions {
   id: string;
@@ -28,6 +29,10 @@ export const IDENTITY: Record<Exclude<Archetype, 'sprite'>, { primary: string; c
   scholar: { primary: '#A855F7', core: '#6B21A8', glow: '#D8B4FE', trim: '#D4AF37' },
   host: { primary: '#10B981', core: '#047857', glow: '#6EE7B7', trim: '#CBD5E1' },
   builder: { primary: '#F59E0B', core: '#B45309', glow: '#FDE047', trim: '#334155' },
+  sentinel: { primary: '#F43F5E', core: '#9F1239', glow: '#FDA4AF', trim: '#CBD5E1' },
+  alchemist: { primary: '#06B6D4', core: '#0E7490', glow: '#A5F3FC', trim: '#E2E8F0' },
+  conductor: { primary: '#EAB308', core: '#A16207', glow: '#FEF08A', trim: '#1F2937' },
+  wisp: { primary: '#A78BFA', core: '#5B21B6', glow: '#DDD6FE', trim: '#F5F3FF' },
 };
 
 /** Accessories a design already wears; picking them again would double up. */
@@ -36,7 +41,13 @@ const BUILT_IN: Partial<Record<Archetype, Accessory[]>> = {
   scholar: ['glasses'],
   host: ['headphones'],
   builder: ['visor', 'glasses'],
+  alchemist: ['glasses'],
 };
+
+/** How long each emote plays, in seconds. */
+const EMOTE_SECONDS: Record<Emote, number> = { wave: 2.4, cheer: 1.6, nod: 1.2, jump: 0.9, dance: 3.2, spin: 1.2, heart: 2.2, laugh: 1.8, shrug: 1.4, surprised: 1.2, stretch: 2.4, bow: 1.6 };
+/** Small fidgets idle agents do on their own (never work-like). */
+const FIDGETS: Emote[] = ['stretch', 'nod', 'jump', 'shrug', 'wave', 'nod'];
 
 export function triad(archetype: Archetype, color: string) {
   const c = new THREE.Color(color);
@@ -97,6 +108,11 @@ interface Parts {
   hands?: [THREE.Object3D, THREE.Object3D];
   hover: boolean;
   jets?: THREE.Sprite[];
+  /** Something that turns continuously (orbiting prisms). */
+  spin?: THREE.Object3D;
+  /** Chest height and the z of the back surface, for back-worn accessories. */
+  chest: number;
+  back: number;
   holo: THREE.Object3D;
   glowMats: THREE.MeshStandardMaterial[];
 }
@@ -131,6 +147,12 @@ export class Creature {
   private lookTarget = new THREE.Vector2();
   private nextGlance = 3;
   private focusSince = -10;
+  private emote: { kind: Emote; t0: number; dur: number } | null = null;
+  private nextFidget = 12;
+  private lively = true;
+  private icon: THREE.Sprite | null = null;
+  private iconKind = '';
+  private accessoryAnim: ((t: number, dt: number) => void) | null = null;
   private random: () => number;
   private fx: {
     think: THREE.Group;
@@ -155,6 +177,7 @@ export class Creature {
     // Blink and glance clocks start at different moments for every agent.
     this.nextBlink = 0.4 + this.random() * 4;
     this.nextGlance = 1 + this.random() * 3;
+    this.nextFidget = 10 + this.random() * 25;
 
     this.group.add(this.pivot);
     this.pivot.add(this.body);
@@ -251,6 +274,14 @@ export class Creature {
         return this.buildHost();
       case 'builder':
         return this.buildBuilder();
+      case 'sentinel':
+        return this.buildSentinel();
+      case 'alchemist':
+        return this.buildAlchemist();
+      case 'conductor':
+        return this.buildConductor();
+      case 'wisp':
+        return this.buildWisp();
       default:
         return this.buildSprite();
     }
@@ -325,7 +356,7 @@ export class Creature {
     const holo = this.starChart(c.glow);
     holo.position.set(0, 1.0, 0.9);
     this.body.add(holo);
-    return { height: cy + R, headY: cy, headR: R, face, hands: [hands[0], hands[1]], hover: true, jets, holo, glowMats: [ring, edge] };
+    return { height: cy + R, headY: cy, headR: R, face, hands: [hands[0], hands[1]], hover: true, jets, holo, glowMats: [ring, edge], chest: cy, back: -R };
   }
 
   private buildScholar(): Parts {
@@ -417,7 +448,7 @@ export class Creature {
     holo.position.set(0, 0.7, 0.66);
     holo.rotation.x = -0.95;
     this.body.add(holo);
-    return { height: 1.57, headY: eyeLine, headR: radiusAt(eyeLine), face, arms, hover: false, holo, glowMats: [] };
+    return { height: 1.57, headY: eyeLine, headR: radiusAt(eyeLine), face, arms, hover: false, holo, glowMats: [], chest: 0.7, back: -0.5 };
   }
 
   private buildHost(): Parts {
@@ -480,7 +511,7 @@ export class Creature {
     const holo = this.soundRings(c.glow, ex + 0.16);
     holo.position.set(0, hy, 0);
     head.add(holo);
-    return { height: 0.88 + hy + hr * 0.97, headY: 0.88 + hy, headR: hr, face, head, arms, hover: false, holo, glowMats: [mint] };
+    return { height: 0.88 + hy + hr * 0.97, headY: 0.88 + hy, headR: hr, face, head, arms, hover: false, holo, glowMats: [mint], chest: 0.66, back: -0.31 };
   }
 
   private buildBuilder(): Parts {
@@ -550,7 +581,7 @@ export class Creature {
     holo.position.set(0, 0.62, 0.64);
     holo.rotation.x = -1.05;
     this.body.add(holo);
-    return { height: 0.86 + hy + 0.36, headY: 0.86 + hy, headR: 0.42, face, head, arms, hover: false, holo, glowMats: [] };
+    return { height: 0.86 + hy + 0.36, headY: 0.86 + hy, headR: 0.42, face, head, arms, hover: false, holo, glowMats: [], chest: 0.62, back: -0.29 };
   }
 
   /** Wrench, screwdriver, hammer and pliers hanging from the builder's belt. */
@@ -604,7 +635,205 @@ export class Creature {
     holo.position.set(0, 0.75, 0.7);
     holo.rotation.x = -0.4;
     this.body.add(holo);
-    return { height: 1.42, headY: 0.86, headR: 0.44, face, arms, hover: false, holo, glowMats: [] };
+    return { height: 1.42, headY: 0.86, headR: 0.44, face, arms, hover: false, holo, glowMats: [], chest: 0.72, back: -0.45 };
+  }
+
+  private buildSentinel(): Parts {
+    const { m } = materials();
+    const c = this.colors;
+    const armor = this.physical({ color: mix(c.primary, c.core, 0.45), roughness: 0.24, metalness: 0.35, clearcoat: 1, clearcoatRoughness: 0.08 }, 0.25);
+    const steel = this.standard({ color: '#d4dae4', metalness: 0.9, roughness: 0.24 });
+    const dark = this.standard({ color: '#151922', roughness: 0.5, metalness: 0.4 });
+    const glow = this.glowMat(c.glow, 1.8);
+    for (const s of [-1, 1]) {
+      this.mesh(new THREE.CapsuleGeometry(0.1, 0.12, 6, 18), armor, this.body, [s * 0.15, 0.27, 0]);
+      this.mesh(chamferBox(0.22, 0.14, 0.3, 0.05, 2), steel, this.body, [s * 0.15, 0.07, 0.04]);
+    }
+    this.mesh(chamferBox(0.66, 0.56, 0.5, 0.16), armor, this.body, [0, 0.66, 0]);
+    this.mesh(chamferBox(0.68, 0.07, 0.52, 0.02, 2), dark, this.body, [0, 0.42, 0]);
+    this.mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.03, 6), glow, this.body, [0, 0.72, 0.255], [Math.PI / 2, 0, 0]);
+    for (const s of [-1, 1]) this.mesh(new THREE.SphereGeometry(0.16, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), steel, this.body, [s * 0.36, 0.86, 0], [0, 0, -s * 0.5]);
+    const head = new THREE.Group();
+    head.position.y = 0.94;
+    this.body.add(head);
+    const helm = new THREE.Group();
+    helm.position.y = 0.3;
+    helm.scale.set(1, 1.06, 1);
+    head.add(helm);
+    this.mesh(new THREE.SphereGeometry(0.36, 56, 40), armor, helm);
+    const face = new Face({ kind: 'ring', eye: c.glow, alarm: '#ff8a5a', bg: '#04060b', mouth: 'glow', squircle: 4, eyeX: 0.2, eyeR: 0.13, eyeRy: 0.25, eyeY: 0.45, mouthY: 0.8 }, 256, 140);
+    this.sphereFace(face, 0.36, 0.5, 0.27, -0.02, 4, helm, steel, 0.018);
+    // crest
+    const crest = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.3, 0.2), new THREE.Vector3(0, 0.42, 0), new THREE.Vector3(0, 0.36, -0.28), new THREE.Vector3(0, 0.18, -0.42)]);
+    this.mesh(new THREE.TubeGeometry(crest, 24, 0.055, 10), this.standard({ color: c.glow, roughness: 0.7 }), helm);
+    for (const s of [-1, 1]) this.mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.06, 24), steel, helm, [s * 0.36, -0.02, 0], [0, 0, Math.PI / 2]);
+    const arms = this.arms(armor, steel, dark, 0.42, 0.82, 0.08, 0.22);
+    // hex shield on the left arm, with a glowing rim
+    const shield = new THREE.Group();
+    shield.position.set(-0.08, -0.24, 0.2);
+    shield.rotation.set(Math.PI / 2, 0, 0);
+    this.mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 6), steel, shield);
+    this.mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.06, 6), armor, shield);
+    const hex: THREE.Vector3[] = [];
+    for (let i = 0; i < 6; i++) hex.push(new THREE.Vector3(Math.cos((i / 6) * Math.PI * 2) * 0.28, -0.035, Math.sin((i / 6) * Math.PI * 2) * 0.28));
+    this.mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(hex, true, 'catmullrom', 0.01), 60, 0.014, 5, true), glow, shield);
+    this.mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.07, 6), glow, shield);
+    arms[0].add(shield);
+    const holo = this.panel(c.glow);
+    holo.position.set(0, 0.85, 0.72);
+    holo.rotation.x = -0.4;
+    this.body.add(holo);
+    return { height: 1.62, headY: 1.24, headR: 0.36, face, head, arms, hover: false, holo, glowMats: [glow], chest: 0.68, back: -0.26 };
+  }
+
+  private buildAlchemist(): Parts {
+    const { m } = materials();
+    const c = this.colors;
+    const robe = this.physical({ color: mix(c.primary, c.core, 0.55), roughness: 0.7, sheen: 1, sheenRoughness: 0.35, sheenColor: new THREE.Color(c.glow) }, 0.25);
+    const profile = [
+      [0.001, 0.02],
+      [0.44, 0.04],
+      [0.47, 0.2],
+      [0.41, 0.5],
+      [0.33, 0.78],
+      [0.24, 0.94],
+      [0.001, 0.97],
+    ].map(([x, y]) => new THREE.Vector2(x, y));
+    this.mesh(new THREE.LatheGeometry(new THREE.SplineCurve(profile).getSpacedPoints(40), 64), robe, this.body);
+    this.mesh(new THREE.TorusGeometry(0.385, 0.025, 8, 56), m.brass, this.body, [0, 0.56, 0], [Math.PI / 2, 0, 0]);
+    this.mesh(new THREE.TorusGeometry(0.27, 0.03, 8, 48), m.brass, this.body, [0, 0.88, 0], [Math.PI / 2, 0, 0]);
+    const head = new THREE.Group();
+    head.position.y = 0.95;
+    this.body.add(head);
+    const crystal = this.own(
+      new THREE.MeshPhysicalMaterial({ color: new THREE.Color(c.glow), emissive: new THREE.Color(c.primary), emissiveIntensity: 0.35, roughness: 0.06, metalness: 0, clearcoat: 1, transparent: true, opacity: 0.82, flatShading: true }),
+    );
+    this.mesh(new THREE.IcosahedronGeometry(0.4, 0), crystal, head, [0, 0.4, 0], [0.2, 0.3, 0], [1, 1.12, 1]);
+    const core = this.glowMat(c.glow, 2.2);
+    this.mesh(new THREE.IcosahedronGeometry(0.12, 0), core, head, [0, 0.42, -0.05]);
+    const face = new Face({ kind: 'disc', eye: '#e0fbff', alarm: '#ff7a5a', bg: '#03121a', mouth: 'glow', pupil: '#0a3a48', squircle: 3, eyeX: 0.2, eyeR: 0.13, eyeRy: 0.24, eyeY: 0.45, mouthY: 0.8 }, 256, 150);
+    this.mesh(new THREE.PlaneGeometry(0.44, 0.26), this.screenMat(face), head, [0, 0.38, 0.37]);
+    this.mesh(new THREE.TubeGeometry(flatOutline(0.22, 0.13, 3, 0.371), 72, 0.012, 6, true), m.brass, head, [0, 0.38, 0]);
+    // three prisms orbit the head
+    const orbit = new THREE.Group();
+    orbit.position.y = 0.42;
+    head.add(orbit);
+    const prism = this.glowMat(c.primary, 1.4);
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      this.mesh(new THREE.OctahedronGeometry(0.06, 0), prism, orbit, [Math.cos(a) * 0.58, Math.sin(a * 2) * 0.08, Math.sin(a) * 0.58], [0, a, 0], [0.7, 1.4, 0.7]);
+    }
+    const arms = this.arms(robe, m.brass, this.standard({ color: '#e2e8f0', roughness: 0.5 }), 0.36, 0.78, 0.075, 0.24);
+    // a glowing flask in the right hand
+    const flask = new THREE.Group();
+    flask.position.set(0.02, -0.42, 0.06);
+    this.mesh(new THREE.SphereGeometry(0.09, 20, 14), m.glass, flask);
+    this.mesh(new THREE.SphereGeometry(0.07, 16, 12), this.glowMat('#a3e635', 1.6), flask, [0, -0.015, 0]);
+    this.mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.08, 12), m.glass, flask, [0, 0.11, 0]);
+    arms[1].add(flask);
+    const holo = this.tablet(c.glow);
+    holo.position.set(0, 0.7, 0.62);
+    holo.rotation.x = -0.9;
+    this.body.add(holo);
+    return { height: 1.8, headY: 1.33, headR: 0.4, face, head, arms, hover: false, spin: orbit, holo, glowMats: [core, prism], chest: 0.62, back: -0.36 };
+  }
+
+  private buildConductor(): Parts {
+    const { m } = materials();
+    const c = this.colors;
+    const gold = this.physical({ color: mix(c.primary, c.core, 0.35), roughness: 0.22, metalness: 0.6, clearcoat: 1, clearcoatRoughness: 0.06 }, 0.2);
+    const coat = this.standard({ color: '#1e2433', roughness: 0.55, metalness: 0.15 });
+    const white = this.standard({ color: '#eef1f6', roughness: 0.45 });
+    for (const s of [-1, 1]) {
+      this.mesh(new THREE.CapsuleGeometry(0.075, 0.18, 6, 16), coat, this.body, [s * 0.12, 0.25, 0]);
+      this.mesh(chamferBox(0.16, 0.08, 0.28, 0.035, 2), this.standard({ color: '#0b0d12', roughness: 0.2, metalness: 0.4 }), this.body, [s * 0.12, 0.045, 0.05]);
+    }
+    this.mesh(new THREE.CylinderGeometry(0.29, 0.33, 0.58, 40), coat, this.body, [0, 0.66, 0]);
+    this.mesh(chamferBox(0.24, 0.44, 0.04, 0.03, 2), gold, this.body, [0, 0.68, 0.3]);
+    for (let i = 0; i < 3; i++) this.mesh(new THREE.SphereGeometry(0.022, 10, 8), m.brass, this.body, [0, 0.8 - i * 0.12, 0.33]);
+    for (const s of [-1, 1]) this.mesh(new THREE.BoxGeometry(0.16, 0.36, 0.03), coat, this.body, [s * 0.1, 0.36, -0.33], [0.35, 0, s * 0.12]);
+    // pocket-watch head: a gold disc with a glass face, rim and winding crown
+    const head = new THREE.Group();
+    head.position.y = 0.95;
+    this.body.add(head);
+    const hy = 0.38;
+    this.mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.24, 64), gold, head, [0, hy, 0], [Math.PI / 2, 0, 0]);
+    this.mesh(new THREE.TorusGeometry(0.4, 0.035, 12, 64), m.brass, head, [0, hy, 0.12]);
+    const face = new Face({ kind: 'disc', eye: '#fff4c2', alarm: '#ff6a3d', bg: '#140f04', mouth: 'glow', pupil: '#3a2a05', squircle: 2, eyeX: 0.2, eyeR: 0.12, eyeRy: 0.13, eyeY: 0.45, mouthY: 0.72 }, 256, 256);
+    this.mesh(new THREE.PlaneGeometry(0.66, 0.66), this.screenMat(face), head, [0, hy, 0.121]);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      this.mesh(new THREE.BoxGeometry(0.012, i % 3 ? 0.03 : 0.055, 0.01), m.brass, head, [Math.sin(a) * 0.36, hy + Math.cos(a) * 0.36, 0.125], [0, 0, -a]);
+    }
+    this.mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 16), m.brass, head, [0, hy + 0.44, 0]);
+    this.mesh(new THREE.TorusGeometry(0.07, 0.016, 8, 24), m.brass, head, [0, hy + 0.53, 0]);
+    this.mesh(new THREE.CylinderGeometry(0.12, 0.13, 0.06, 24), coat, head, [0, 0.04, 0]);
+    const glow = this.glowMat(c.glow, 2.2);
+    const arms = this.arms(coat, white, white, 0.36, 0.84, 0.07, 0.24);
+    const baton = new THREE.Group();
+    baton.position.set(0.02, -0.38, 0.08);
+    baton.rotation.x = -0.9;
+    this.mesh(new THREE.CylinderGeometry(0.012, 0.008, 0.42, 8), white, baton, [0, 0.2, 0]);
+    this.mesh(new THREE.SphereGeometry(0.022, 10, 8), glow, baton, [0, 0.41, 0]);
+    arms[1].add(baton);
+    const holo = this.panel(c.glow);
+    holo.position.set(0, 0.88, 0.7);
+    holo.rotation.x = -0.4;
+    this.body.add(holo);
+    return { height: 0.95 + hy + 0.6, headY: 0.95 + hy, headR: 0.4, face, head, arms, hover: false, holo, glowMats: [glow], chest: 0.66, back: -0.33 };
+  }
+
+  private buildWisp(): Parts {
+    const c = this.colors;
+    const profile = [
+      [0.001, 1.46],
+      [0.2, 1.43],
+      [0.37, 1.32],
+      [0.46, 1.1],
+      [0.48, 0.84],
+      [0.46, 0.58],
+      [0.45, 0.36],
+    ].map(([x, y]) => new THREE.Vector2(x, y));
+    const pts = new THREE.SplineCurve(profile).getSpacedPoints(48).reverse();
+    const geo = new THREE.LatheGeometry(pts, 72);
+    // scalloped hem
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      if (y < 0.5) {
+        const a = Math.atan2(pos.getX(i), pos.getZ(i));
+        pos.setY(i, y - (0.5 - y) * 0.6 * (0.5 + 0.5 * Math.cos(a * 7)));
+      }
+    }
+    geo.computeVertexNormals();
+    const body = this.own(
+      new THREE.MeshPhysicalMaterial({ color: new THREE.Color(c.glow).lerp(new THREE.Color('#ffffff'), 0.35), emissive: new THREE.Color(c.primary), emissiveIntensity: 0.55, roughness: 0.4, clearcoat: 0.6, transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
+    );
+    withRim(body, c.glow, 0.6, 2.2);
+    this.mesh(geo, body, this.body);
+    const top = 1.32;
+    const bottom = 0.72;
+    const facePts = pts.filter((q) => q.y > bottom && q.y < top).map((q) => new THREE.Vector2(q.x + 0.008, q.y));
+    const face = new Face({ kind: 'disc', eye: '#1e1446', alarm: '#7f1d1d', bg: null, mouth: 'ink', ink: '#1e1446', pupil: '#0d0824', eyeX: 0.19, eyeR: 0.11, eyeRy: 0.2, eyeY: 0.42, mouthY: 0.72 }, 256, 210);
+    const decal = this.own(new THREE.MeshStandardMaterial({ map: face.texture, transparent: true, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2 }));
+    this.mesh(new THREE.LatheGeometry(facePts, 40, -0.75, 1.5), decal, this.body).userData.noShadow = true;
+    // little nub arms
+    const arms: THREE.Object3D[] = [];
+    for (const s of [-1, 1]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(s * 0.44, 0.78, 0.04);
+      this.mesh(new THREE.SphereGeometry(0.1, 18, 12), body, pivot, [0, -0.08, 0], undefined, [0.75, 1.2, 0.75]);
+      this.body.add(pivot);
+      arms.push(pivot);
+    }
+    const halo = this.glowSprite(c.glow, 1.9, 0.22);
+    halo.position.y = 0.95;
+    this.body.add(halo);
+    const holo = this.panel(c.glow);
+    holo.position.set(0, 0.95, 0.75);
+    holo.rotation.x = -0.4;
+    this.body.add(holo);
+    return { height: 1.46, headY: 1.02, headR: 0.46, face, arms: [arms[0], arms[1]], hover: true, holo, glowMats: [], chest: 0.85, back: -0.47 };
   }
 
   /** Two shoulder pivots with arms hanging along -y. */
@@ -820,6 +1049,123 @@ export class Creature {
       case 'visor':
         this.mesh(new THREE.CylinderGeometry(hr * 0.95, hr * 0.95, 0.06, 32, 1, true, -1.2, 2.4), m.gunmetal, g, [0, Y(top - 0.12), 0]);
         break;
+      case 'party-hat': {
+        const hat = new THREE.Group();
+        hat.position.set(0.05, Y(top + 0.12), 0);
+        hat.rotation.z = -0.25;
+        const cone = this.standard({ color: '#38bdf8', roughness: 0.5 });
+        const stripe = this.standard({ color: '#fde047', roughness: 0.5 });
+        this.mesh(new THREE.ConeGeometry(0.15, 0.34, 24), cone, hat);
+        for (const k of [0.25, 0.55]) this.mesh(new THREE.TorusGeometry(0.15 * (1 - k) + 0.004, 0.012, 6, 24), stripe, hat, [0, -0.17 + k * 0.34, 0], [Math.PI / 2, 0, 0]);
+        this.mesh(new THREE.SphereGeometry(0.05, 14, 10), this.standard({ color: '#f472b6', roughness: 0.8 }), hat, [0, 0.19, 0]);
+        g.add(hat);
+        break;
+      }
+      case 'halo': {
+        const halo = this.mesh(new THREE.TorusGeometry(0.2, 0.022, 10, 48), this.glowMat('#fde68a', 2.4), g, [0, Y(top + 0.2), 0], [Math.PI / 2, 0, 0]);
+        halo.userData.noShadow = true;
+        const y0 = halo.position.y;
+        this.accessoryAnim = (t) => (halo.position.y = y0 + Math.sin(t * 2 + this.phase) * 0.025);
+        break;
+      }
+      case 'top-hat': {
+        const black = this.standard({ color: '#14161c', roughness: 0.35, metalness: 0.2 });
+        this.mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.025, 40), black, g, [0, Y(top + 0.01), 0]);
+        this.mesh(new THREE.CylinderGeometry(0.17, 0.18, 0.3, 40), black, g, [0, Y(top + 0.17), 0]);
+        this.mesh(new THREE.CylinderGeometry(0.182, 0.182, 0.05, 40), this.standard({ color: '#b91c1c', roughness: 0.4 }), g, [0, Y(top + 0.06), 0]);
+        break;
+      }
+      case 'wizard-hat': {
+        const hat = new THREE.Group();
+        hat.position.set(0, Y(top - 0.02), 0);
+        const cloth = this.standard({ color: '#3730a3', roughness: 0.8 });
+        this.mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.03, 40), cloth, hat);
+        const tip = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.25, 0), new THREE.Vector3(0.05, 0.45, 0), new THREE.Vector3(0.16, 0.55, 0)]);
+        const cone = new THREE.TubeGeometry(tip, 20, 1, 24);
+        const p2 = cone.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < p2.count; i++) {
+          const ring = Math.floor(i / 25) / 20;
+          const center = tip.getPoint(ring);
+          const r = 0.2 * (1 - ring) + 0.01;
+          p2.setXYZ(i, center.x + (p2.getX(i) - center.x) * r, center.y + (p2.getY(i) - center.y) * r, center.z + (p2.getZ(i) - center.z) * r);
+        }
+        cone.computeVertexNormals();
+        this.mesh(cone, cloth, hat);
+        const star = this.glowMat('#fde047', 2);
+        for (const [x, y, z] of [[0.1, 0.18, 0.12], [-0.08, 0.3, 0.1], [0.04, 0.08, -0.17]] as const) this.mesh(new THREE.OctahedronGeometry(0.03, 0), star, hat, [x, y, z]);
+        g.add(hat);
+        break;
+      }
+      case 'cat-ears': {
+        const fur = this.standard({ color: this.colors.core, roughness: 0.8 });
+        const pink = this.standard({ color: '#f9a8d4', roughness: 0.8 });
+        for (const s of [-1, 1]) {
+          const ear = new THREE.Group();
+          ear.position.set(s * hr * 0.55, Y(top - 0.04), 0);
+          ear.rotation.z = -s * 0.35;
+          this.mesh(new THREE.ConeGeometry(0.1, 0.2, 4), fur, ear, [0, 0.08, 0], [0, Math.PI / 4, 0]);
+          this.mesh(new THREE.ConeGeometry(0.055, 0.12, 4), pink, ear, [0, 0.07, 0.035], [0, Math.PI / 4, 0]);
+          g.add(ear);
+        }
+        break;
+      }
+      case 'flower': {
+        const petals = ['#fbcfe8', '#ffffff', '#fde68a', '#f9a8d4', '#c4b5fd'];
+        this.mesh(new THREE.TorusGeometry(hr * 0.7, 0.025, 8, 40), this.standard({ color: '#4d7c0f', roughness: 0.8 }), g, [0, Y(top - 0.08), 0], [Math.PI / 2, 0, 0]);
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          const mat = this.standard({ color: petals[i % petals.length], roughness: 0.7 });
+          this.mesh(new THREE.SphereGeometry(0.055, 12, 8), mat, g, [Math.cos(a) * hr * 0.7, Y(top - 0.05), Math.sin(a) * hr * 0.7], undefined, [1, 0.6, 1]);
+          this.mesh(new THREE.SphereGeometry(0.022, 8, 6), this.standard({ color: '#f59e0b' }), g, [Math.cos(a) * hr * 0.7, Y(top - 0.02), Math.sin(a) * hr * 0.7]);
+        }
+        break;
+      }
+      case 'bowtie': {
+        const red = this.standard({ color: '#dc2626', roughness: 0.45 });
+        const y = this.parts.chest + 0.22;
+        const z = Math.abs(this.parts.back) + 0.04;
+        for (const s of [-1, 1]) this.mesh(new THREE.ConeGeometry(0.065, 0.12, 4), red, this.body, [s * 0.06, y, z], [0, 0, (s * Math.PI) / 2]);
+        this.mesh(new THREE.SphereGeometry(0.03, 10, 8), red, this.body, [0, y, z + 0.01]);
+        break;
+      }
+      case 'cape': {
+        const geo = new THREE.PlaneGeometry(0.8, 0.95, 8, 10);
+        const pos = geo.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < pos.count; i++) pos.setZ(i, -Math.pow(Math.abs(pos.getX(i)) / 0.4, 2) * 0.1);
+        geo.translate(0, -0.47, 0);
+        geo.computeVertexNormals();
+        const cape = this.mesh(geo, this.standard({ color: '#b91c1c', roughness: 0.6, side: THREE.DoubleSide }), this.body, [0, this.parts.chest + 0.3, this.parts.back - 0.04]);
+        this.accessoryAnim = (t) => (cape.rotation.x = 0.12 + Math.sin(t * 1.8 + this.phase) * 0.06 + (this.walking > 0 ? 0.25 : 0));
+        break;
+      }
+      case 'backpack': {
+        const leather = this.standard({ color: '#8b5a2b', roughness: 0.75 });
+        const z = this.parts.back - 0.1;
+        this.mesh(chamferBox(0.42, 0.46, 0.2, 0.07, 2), leather, this.body, [0, this.parts.chest, z]);
+        this.mesh(chamferBox(0.3, 0.16, 0.06, 0.03, 2), this.standard({ color: '#a16207', roughness: 0.7 }), this.body, [0, this.parts.chest - 0.08, z - 0.12]);
+        this.mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.48, 18), this.standard({ color: '#15803d', roughness: 0.85 }), this.body, [0, this.parts.chest + 0.3, z], [0, 0, Math.PI / 2]);
+        break;
+      }
+      case 'jetpack': {
+        const z = this.parts.back - 0.1;
+        const flames: THREE.Sprite[] = [];
+        for (const s of [-1, 1]) {
+          this.mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.42, 20), m.titanium, this.body, [s * 0.12, this.parts.chest, z]);
+          this.mesh(new THREE.ConeGeometry(0.09, 0.12, 20), m.gunmetal, this.body, [s * 0.12, this.parts.chest + 0.27, z]);
+          this.mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.06, 16), m.gunmetal, this.body, [s * 0.12, this.parts.chest - 0.24, z]);
+          const f = this.glowSprite('#fb923c', 0.3, 0.7);
+          f.position.set(s * 0.12, this.parts.chest - 0.36, z);
+          this.body.add(f);
+          flames.push(f);
+        }
+        this.accessoryAnim = (t) =>
+          flames.forEach((f, i) => {
+            const on = this.state === 'OFFLINE' ? 0.1 : 1;
+            f.scale.setScalar((0.24 + Math.sin(t * 23 + i * 2) * 0.05) * on);
+            (f.material as THREE.SpriteMaterial).opacity = 0.65 * on;
+          });
+        break;
+      }
       default:
         break;
     }
@@ -836,6 +1182,37 @@ export class Creature {
   /** Body yaw (radians) the character should turn toward. */
   setFacing(yaw: number) {
     this.facingTarget = yaw;
+  }
+
+  /** Plays an emote now (replacing any emote in progress). */
+  play(kind: Emote) {
+    this.emote = { kind, t0: this.time, dur: EMOTE_SECONDS[kind] };
+  }
+
+  /** Idle agents fidget now and then; off for reduced motion and portraits. */
+  setLively(on: boolean) {
+    this.lively = on;
+  }
+
+  private showIcon(kind: string, progress: number) {
+    if (!kind) {
+      if (this.icon) this.icon.visible = false;
+      return;
+    }
+    if (!this.icon) {
+      this.icon = new THREE.Sprite(this.own(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, toneMapped: false })));
+      this.pivot.add(this.icon);
+    }
+    if (this.iconKind !== kind) {
+      const mat = this.icon.material as THREE.SpriteMaterial;
+      mat.map = this.own(iconTexture(kind));
+      mat.needsUpdate = true;
+      this.iconKind = kind;
+    }
+    this.icon.visible = true;
+    this.icon.position.set(0.28, this.parts.height + 0.25 + progress * 0.35, 0.1);
+    this.icon.scale.setScalar(0.3 + Math.sin(Math.min(1, progress * 3) * Math.PI * 0.5) * 0.08);
+    (this.icon.material as THREE.SpriteMaterial).opacity = Math.min(1, (1 - progress) * 3);
   }
 
   setFocused(f: boolean) {
@@ -856,7 +1233,25 @@ export class Creature {
     const s = this.state;
     // A short wave hello right after the agent is selected.
     const sinceFocus = t - this.focusSince;
-    const waving = this.focused && (s === 'IDLE' || s === 'ONLINE') && sinceFocus > 0.15 && sinceFocus < 2.8;
+    let waving = this.focused && (s === 'IDLE' || s === 'ONLINE') && sinceFocus > 0.15 && sinceFocus < 2.8;
+
+    // emotes: played on request, or small idle fidgets now and then
+    const calmState = s === 'IDLE' || s === 'ONLINE';
+    if (this.emote && t - this.emote.t0 > this.emote.dur) this.emote = null;
+    if (!this.emote && this.lively && calmState && !this.focused && age > 4 && t > this.nextFidget) {
+      this.play(FIDGETS[Math.floor(this.random() * FIDGETS.length)]);
+      this.nextFidget = t + 16 + this.random() * 28;
+    }
+    const em = this.emote;
+    const ep = em ? (t - em.t0) / em.dur : 0;
+    const env = em ? Math.sin(Math.min(1, ep) * Math.PI) : 0;
+    let arms: { rl: number; rr: number; sl: number; sr: number } | null = null;
+    let emExpr: Expr | null = null;
+    let headPitch = 0;
+    let headRoll = 0;
+    let spinYaw = 0;
+    let emLean = 0;
+    let icon = '';
 
     // body: hover or breathe, plus state-specific motion
     let y = p.lift;
@@ -876,16 +1271,89 @@ export class Creature {
       extraTilt = Math.sin(t * 9) * 0.05;
     }
     if (s === 'THINKING' && !parts.head) extraTilt += Math.sin(t * 0.9 + this.phase) * 0.05;
+    switch (em?.kind) {
+      case 'wave':
+        waving = true;
+        emExpr = 'neutral';
+        break;
+      case 'cheer':
+        y += Math.abs(Math.sin(ep * Math.PI * 2)) * 0.22;
+        arms = { rl: 2.9, rr: 2.9, sl: 0.5, sr: 0.5 };
+        emExpr = 'happy';
+        break;
+      case 'nod':
+        headPitch = Math.sin(ep * Math.PI * 4) * 0.22 * env;
+        if (!parts.head) emLean = headPitch * 0.5;
+        emExpr = 'neutral';
+        break;
+      case 'jump':
+        y += Math.max(0, Math.sin(ep * Math.PI)) * 0.5;
+        if (!parts.hover) this.body.scale.y = 1 - Math.max(0, Math.sin(ep * Math.PI * 2 + Math.PI)) * 0.1;
+        arms = { rl: 1.4, rr: 1.4, sl: 0.7, sr: 0.7 };
+        emExpr = 'happy';
+        break;
+      case 'dance':
+        y += Math.abs(Math.sin(t * 10)) * 0.08 * env;
+        extraTilt += Math.sin(t * 5) * 0.18 * env;
+        spinYaw = Math.sin(t * 2.5) * 0.5 * env;
+        arms = { rl: 1.6 + Math.sin(t * 10) * 0.6, rr: 1.6 - Math.sin(t * 10) * 0.6, sl: 0.6, sr: 0.6 };
+        emExpr = 'happy';
+        icon = 'note';
+        break;
+      case 'spin':
+        spinYaw = ease.inOut(Math.min(1, ep)) * Math.PI * 2;
+        y += Math.sin(ep * Math.PI) * 0.15;
+        arms = { rl: 0.3, rr: 0.3, sl: 1.3, sr: 1.3 };
+        emExpr = 'happy';
+        break;
+      case 'heart':
+        arms = { rl: 1.2, rr: 1.2, sl: -0.25, sr: -0.25 };
+        emExpr = 'happy';
+        icon = 'heart';
+        break;
+      case 'laugh':
+        shakeX += Math.sin(t * 30) * 0.012 * env;
+        y += Math.abs(Math.sin(t * 14)) * 0.03;
+        headPitch = -0.15 * env;
+        emExpr = 'happy';
+        break;
+      case 'shrug':
+        arms = { rl: 0.5, rr: 0.5, sl: 1.0, sr: 1.0 };
+        headRoll = 0.2 * env;
+        emExpr = 'calm';
+        icon = 'question';
+        break;
+      case 'surprised':
+        y += Math.max(0, Math.sin(Math.min(1, ep * 2.5) * Math.PI)) * 0.28;
+        arms = { rl: 0.9, rr: 0.9, sl: 0.9, sr: 0.9 };
+        emExpr = 'calm';
+        icon = 'bang';
+        break;
+      case 'stretch':
+        arms = { rl: 2.8, rr: 2.8, sl: 0.3, sr: 0.3 };
+        emLean = -0.12 * env;
+        emExpr = ep > 0.25 && ep < 0.75 ? 'sleep' : 'idle';
+        break;
+      case 'bow':
+        emLean = 0.45 * env;
+        arms = { rl: 0.15, rr: 0.9, sl: 0.1, sr: -0.3 };
+        emExpr = 'happy';
+        break;
+      default:
+        break;
+    }
+    if (emExpr) p.expr = emExpr;
+    this.showIcon(icon, ep);
     this.pivot.position.set(shakeX, y, 0);
-    this.pivot.rotation.set(p.lean, 0, p.tilt + extraTilt);
+    this.pivot.rotation.set(p.lean + emLean, 0, p.tilt + extraTilt);
 
     // head: looks around, tilts while thinking, bows over work
     if (parts.head) {
       const hd = parts.head;
       const yaw = this.look.x * 2.4 + (s === 'THINKING' ? Math.sin(t * 0.7 + this.phase) * 0.14 : 0);
       const roll = s === 'THINKING' ? 0.15 : s === 'ERROR' ? Math.sin(t * 7) * 0.03 : waving ? 0.1 : Math.sin(phase * 0.5) * 0.015;
-      const pitch = s === 'WORKING' ? 0.16 : s === 'OFFLINE' ? 0.28 : s === 'COMPLETED' ? -0.12 : this.look.y * 1.5;
-      hd.rotation.set(damp(hd.rotation.x, pitch, 4, dt), damp(hd.rotation.y, yaw, 4, dt), damp(hd.rotation.z, roll, 4, dt));
+      const pitch = (s === 'WORKING' ? 0.16 : s === 'OFFLINE' ? 0.28 : s === 'COMPLETED' ? -0.12 : this.look.y * 1.5) + headPitch;
+      hd.rotation.set(damp(hd.rotation.x, pitch, em ? 12 : 4, dt), damp(hd.rotation.y, yaw, 4, dt), damp(hd.rotation.z, roll + headRoll, 4, dt));
     }
 
     // arms
@@ -911,6 +1379,12 @@ export class Creature {
         sl += Math.sin(phase + 1) * 0.03;
         sr += Math.sin(phase + 2) * 0.03;
       }
+      if (arms) {
+        rl += (arms.rl - rl) * env;
+        rr += (arms.rr - rr) * env;
+        sl += (arms.sl - sl) * env;
+        sr += (arms.sr - sr) * env;
+      }
       L.rotation.set(-rl, 0, -sl);
       R.rotation.set(-rr, 0, sr);
     }
@@ -920,9 +1394,10 @@ export class Creature {
       const bob = (o: number) => Math.sin(phase * 1.3 + o) * 0.04;
       const jitter = s === 'WORKING' ? Math.sin(t * 12) * 0.03 : 0;
       const k = Math.min(1, dt * 5);
-      L.position.lerp(TMP.set(-b[0], b[1] + bob(0) + jitter, b[2]), k);
+      const lift2 = arms ? arms.rl * 0.3 * env : 0;
+      L.position.lerp(TMP.set(-b[0], b[1] + bob(0) + jitter + lift2, b[2]), k);
       const rb = s === 'THINKING' ? [0.3, 0.8, 0.62] : waving ? [0.9, 1.45 + Math.sin(t * 9) * 0.08, 0.2] : b;
-      R.position.lerp(TMP.set(rb[0], rb[1] + bob(1.7) - jitter, rb[2]), k);
+      R.position.lerp(TMP.set(rb[0], rb[1] + bob(1.7) - jitter + (arms ? arms.rr * 0.3 * env : 0), rb[2]), k);
       L.rotation.z = damp(L.rotation.z, s === 'COMPLETED' ? -2.6 : -0.25, 5, dt);
       R.rotation.z = damp(R.rotation.z, s === 'COMPLETED' || waving ? 2.6 : 0.25, 5, dt);
     }
@@ -952,7 +1427,9 @@ export class Creature {
 
     // facing
     this.facing = damp(this.facing, this.facingTarget, 4, dt);
-    this.group.rotation.y = this.facing;
+    this.group.rotation.y = this.facing + spinYaw;
+    if (parts.spin) parts.spin.rotation.y += dt * (s === 'WORKING' || s === 'THINKING' ? 1.6 : 0.6);
+    this.accessoryAnim?.(t, dt);
 
     // glow materials follow presence
     for (const gm of parts.glowMats) gm.emissiveIntensity = 1.8 * Math.max(0.15, p.dim);
@@ -983,9 +1460,9 @@ export class Creature {
     }
     fx.question.visible = s === 'UNKNOWN';
     fx.cushion.visible = s === 'WAITING' && !parts.hover;
-    fx.sparkles.visible = s === 'COMPLETED' && age < 3.2;
+    fx.sparkles.visible = (s === 'COMPLETED' && age < 3.2) || em?.kind === 'cheer';
     if (fx.sparkles.visible) {
-      const cycle = age % 1.6;
+      const cycle = (em?.kind === 'cheer' ? t - em.t0 : age) % 1.6;
       fx.sparkles.children.forEach((c) => {
         c.position.copy(c.userData.dir as THREE.Vector3).multiplyScalar(0.25 + cycle * 0.75);
         c.scale.setScalar(Math.max(0.01, 1 - cycle / 1.6) * 1.2);
@@ -1014,6 +1491,45 @@ export class Creature {
 }
 
 const TMP = new THREE.Vector3();
+
+/** Emote icons drawn on a canvas: a heart, a music note, ! and ?. */
+function iconTexture(kind: string) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = 'rgba(10,15,29,0.72)';
+  ctx.beginPath();
+  ctx.arc(64, 64, 58, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = kind === 'heart' ? '#fb7185' : kind === 'note' ? '#a5f3fc' : kind === 'bang' ? '#fde047' : '#e2e8f0';
+  if (kind === 'heart') {
+    ctx.beginPath();
+    ctx.moveTo(64, 98);
+    ctx.bezierCurveTo(20, 70, 26, 30, 50, 34);
+    ctx.bezierCurveTo(58, 35, 62, 42, 64, 48);
+    ctx.bezierCurveTo(66, 42, 70, 35, 78, 34);
+    ctx.bezierCurveTo(102, 30, 108, 70, 64, 98);
+    ctx.fill();
+  } else if (kind === 'note') {
+    ctx.beginPath();
+    ctx.ellipse(50, 88, 15, 11, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(60, 30, 7, 58);
+    ctx.beginPath();
+    ctx.moveTo(60, 30);
+    ctx.quadraticCurveTo(84, 36, 88, 56);
+    ctx.quadraticCurveTo(80, 44, 67, 44);
+    ctx.fill();
+  } else {
+    ctx.font = '800 76px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(kind === 'bang' ? '!' : '?', 64, 68);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
 function warningTexture() {
   const c = document.createElement('canvas');

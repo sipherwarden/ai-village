@@ -21,6 +21,8 @@ import { ADAPTERS, genericEvents, integrationInfo, type AdapterContext, type Con
 import { Secrets } from './secrets.ts';
 import { checkProvider } from './providers.ts';
 import { Auth, COOKIE, isLoopback, isPrivate, newToken, sha256 } from './auth.ts';
+import { Shop, loadShopConfig } from './shop.ts';
+import { ACCESSORY_IDS, ARCHETYPE_IDS, ISLAND_IDS, ITEM, dailyDeals, dealDay } from '../shared/cosmetics.ts';
 import { DemoDriver } from './demo.ts';
 import { DEFAULT_HUB, DEFAULT_PREFS, defaultAgents } from './defaults.ts';
 // @ts-ignore -- plain ESM helper shared with the CLI
@@ -39,6 +41,7 @@ const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).ver
 const store = new Store(join(DATA, 'village.db'));
 const secrets = new Secrets(process.env.AI_VILLAGE_SECRETS);
 const auth = new Auth(store);
+const shop = new Shop(store, loadShopConfig(ROOT));
 
 store.abandonRunningTasks(Date.now());
 
@@ -281,7 +284,13 @@ function sanitizeAgent(input: Partial<AgentConfig>, existing?: AgentConfig): Age
   if (!ADAPTERS[a.integration]) return 'Unknown integration.';
   if (a.secretRef && !secrets.has(a.secretRef)) return `No stored secret named "${a.secretRef}".`;
   a.appearance.scale = Math.min(1.3, Math.max(0.8, Number(a.appearance.scale) || 1));
-  if (a.appearance.archetype && !['explorer', 'scholar', 'host', 'builder', 'sprite'].includes(a.appearance.archetype)) delete a.appearance.archetype;
+  if (a.appearance.archetype && !ARCHETYPE_IDS.includes(a.appearance.archetype)) delete a.appearance.archetype;
+  if (!ACCESSORY_IDS.includes(a.appearance.accessory)) a.appearance.accessory = 'none';
+  // Shop items: anything newly chosen must be unlocked on this install (existing looks are kept).
+  for (const id of [`character:${a.appearance.archetype}`, `accessory:${a.appearance.accessory}`]) {
+    const was = id.startsWith('character:') ? `character:${existing?.appearance.archetype}` : `accessory:${existing?.appearance.accessory}`;
+    if (ITEM[id] && id !== was && !shop.owns(id)) return `Unlock the ${ITEM[id].name} ${ITEM[id].kind} in the shop first.`;
+  }
   for (const [k, v] of Object.entries(a.settings)) {
     if (!['string', 'number', 'boolean'].includes(typeof v)) delete a.settings[k];
     else if (typeof v === 'string') a.settings[k] = v.slice(0, 500);
@@ -441,9 +450,26 @@ app.put<{ Body: Partial<HubSettings> }>('/api/hub', async (req) => {
   return hub;
 });
 
+// ---- shop: browse, and redeem receipts signed by the shop server
+app.get('/api/shop', async () => ({
+  configured: !!(shop.config.serverUrl && shop.config.publicKey),
+  serverUrl: shop.config.serverUrl,
+  installId: shop.installId(),
+  owned: shop.owned(),
+  day: dealDay(),
+  deals: dailyDeals(),
+}));
+app.post<{ Body: { receipt?: string } }>('/api/shop/redeem', async (req, reply) => {
+  const r = shop.redeem(String(req.body?.receipt ?? ''));
+  if (typeof r === 'string') return bad(reply, 400, r);
+  return { ok: true, item: r.item, owned: shop.owned() };
+});
+
 app.get('/api/prefs', async () => prefs);
 app.put<{ Body: Partial<Preferences> }>('/api/prefs', async (req) => {
-  prefs = { ...prefs, ...req.body, notifyOn: { ...prefs.notifyOn, ...req.body?.notifyOn } };
+  const next = { ...prefs, ...req.body, notifyOn: { ...prefs.notifyOn, ...req.body?.notifyOn } };
+  if (next.island !== prefs.island && (!next.island || !ISLAND_IDS.includes(next.island) || !shop.owns(`island:${next.island}`))) next.island = prefs.island;
+  prefs = next;
   store.setKv('prefs', prefs);
   return prefs;
 });

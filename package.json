@@ -17,7 +17,9 @@
     "test": "node --disable-warning=ExperimentalWarning --test server/test/*.test.ts",
     "hooks:install": "node scripts/install-hooks.mjs",
     "hooks:uninstall": "node scripts/install-hooks.mjs --uninstall",
-    "hub": "node --disable-warning=ExperimentalWarning server/index.ts"
+    "hub": "node --disable-warning=ExperimentalWarning server/index.ts",
+    "shop:keygen": "node scripts/shop-keygen.mjs",
+    "shop:server": "node --disable-warning=ExperimentalWarning shop-server/index.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",

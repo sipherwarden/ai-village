@@ -3,12 +3,15 @@ import type { Accessory, AgentConfig, AgentState, BodyShape, ExpressionStyle, In
 import { api } from '../lib/api.ts';
 import { STATE_LABEL } from '../lib/format.ts';
 import { Portrait as Character } from './Avatar.tsx';
-import { ARCHETYPES, archetypeOf, extraAccessory } from '../lib/archetype.ts';
+import { archetypeOf, extraAccessory } from '../lib/archetype.ts';
+import { ACCESSORIES as ACCESSORY_ITEMS, CHARACTERS } from '../../../shared/cosmetics.ts';
+import { isOwned, useShop } from '../lib/shop.ts';
+import { Lock } from 'lucide-react';
+import type { Archetype } from '../../../shared/types.ts';
 import { Markdown, Modal, Segmented } from './ui.tsx';
 
 const COLORS = ['#4C8DFF', '#A47CFF', '#2FC17A', '#FF8A3D', '#FF5C8A', '#22C3E6', '#FFC23D', '#7C8CFF', '#E2556B', '#8BD450'];
 const SHAPES: BodyShape[] = ['round', 'squircle', 'drop', 'bean', 'ghost'];
-const ACCESSORIES: Accessory[] = ['none', 'antenna', 'headphones', 'glasses', 'beanie', 'bow', 'leaf', 'crown', 'visor', 'scarf'];
 const EXPRESSIONS: ExpressionStyle[] = ['friendly', 'focused', 'cheerful', 'sleepy'];
 const VOICES: { value: VoiceStyle; label: string }[] = [
   { value: 'curious', label: 'Curious' },
@@ -37,7 +40,8 @@ const BLANK: AgentConfig = {
   sort: 0,
 };
 
-export function AgentEditor({ open, agent, onClose }: { open: boolean; agent: AgentConfig | null; onClose: () => void }) {
+export function AgentEditor({ open, agent, onClose, onShop }: { open: boolean; agent: AgentConfig | null; onClose: () => void; onShop: () => void }) {
+  const shop = useShop();
   const isNew = !agent;
   const [draft, setDraft] = useState<AgentConfig>(agent ?? BLANK);
   const [integrations, setIntegrations] = useState<IntegrationInfo[]>([]);
@@ -152,20 +156,17 @@ export function AgentEditor({ open, agent, onClose }: { open: boolean; agent: Ag
               </label>
             </div>
             <div>
-              <span className="mb-1.5 block text-[12.5px] text-ink-2">Character design (also sets the workstation)</span>
-              <div className="grid grid-cols-5 gap-1.5">
-                {ARCHETYPES.map((t) => {
-                  const on = archetypeOf(draft.appearance, draft.voice) === t.value;
+              <span className="mb-1.5 block text-[12.5px] text-ink-2">Character (also picks its home in the village)</span>
+              <div className="pick-grid">
+                {CHARACTERS.map((t) => {
+                  const value = t.value as Archetype;
+                  const on = archetypeOf(draft.appearance, draft.voice) === value;
+                  const owned = isOwned(shop, t.id) || agent?.appearance.archetype === value;
                   return (
-                    <button
-                      key={t.value}
-                      title={`${t.blurb}. Workstation: ${t.station}.`}
-                      className="flex flex-col items-center rounded-[14px] border px-1 pb-1.5 pt-1 transition-colors"
-                      style={{ borderColor: on ? 'var(--accent)' : 'var(--border)', background: on ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'var(--glass)' }}
-                      onClick={() => setLook({ archetype: t.value, accessory: 'none' })}
-                    >
-                      <Character color={draft.color} appearance={{ ...draft.appearance, archetype: t.value, accessory: 'none' }} voice={draft.voice} state="IDLE" size={58} still />
-                      <span className="mt-0.5 text-[11.5px] font-semibold">{t.label}</span>
+                    <button key={t.id} title={owned ? t.blurb : `${t.name} is in the shop`} className="pick" aria-pressed={on} data-locked={!owned || undefined} onClick={() => (owned ? setLook({ archetype: value, accessory: 'none' }) : onShop())}>
+                      {!owned && <Lock size={13} className="lock" />}
+                      <Character color={draft.color} appearance={{ ...draft.appearance, archetype: value, accessory: 'none' }} voice={draft.voice} state="IDLE" size={58} still />
+                      {t.name}
                     </button>
                   );
                 })}
@@ -178,8 +179,20 @@ export function AgentEditor({ open, agent, onClose }: { open: boolean; agent: Ag
               </div>
             )}
             <div>
-              <span className="mb-1 block text-[12.5px] text-ink-2">Extra accessory</span>
-              <Segmented value={draft.appearance.accessory} options={ACCESSORIES.map((s) => ({ value: s, label: s }))} onChange={(v) => setLook({ accessory: v })} />
+              <span className="mb-1.5 block text-[12.5px] text-ink-2">Accessory</span>
+              <div className="pick-grid">
+                {ACCESSORY_ITEMS.map((a) => {
+                  const value = a.value as Accessory;
+                  const owned = isOwned(shop, a.id) || agent?.appearance.accessory === value;
+                  return (
+                    <button key={a.id} title={owned ? a.blurb : `${a.name} is in the shop`} className="pick" aria-pressed={draft.appearance.accessory === value} data-locked={!owned || undefined} onClick={() => (owned ? setLook({ accessory: value }) : onShop())}>
+                      {!owned && <Lock size={13} className="lock" />}
+                      <Character color={draft.color} appearance={{ ...draft.appearance, accessory: value }} voice={draft.voice} state="IDLE" size={50} framing="head" />
+                      {a.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex flex-wrap items-end gap-4">
               <div>

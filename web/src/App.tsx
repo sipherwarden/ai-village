@@ -15,6 +15,9 @@ import { AgentsView } from './components/AgentsView.tsx';
 import { AgentEditor } from './components/AgentEditor.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { Toasts } from './components/Toasts.tsx';
+import { ShopView } from './components/ShopView.tsx';
+import { finishPurchase } from './lib/shop.ts';
+import { ITEM } from '../../shared/cosmetics.ts';
 import { Login } from './components/Login.tsx';
 import { useLayout, useMedia } from './components/ui.tsx';
 
@@ -61,6 +64,22 @@ export function App() {
   const [editor, setEditor] = useState<{ open: boolean; agent: AgentConfig | null }>({ open: false, agent: null });
   const [kiosk, setKiosk] = useState(false);
   const [offlineLong, setOfflineLong] = useState(false);
+  const [purchase, setPurchase] = useState<string | null>(null);
+
+  // Coming back from Stripe Checkout: claim the receipt and unlock the item.
+  useEffect(() => {
+    if (auth !== 'signed-in') return;
+    void finishPurchase().then((r) => {
+      if (!r) return;
+      setPurchase(r.item ? `Unlocked: ${ITEM[r.item]?.name ?? r.item}. Thank you for supporting AI Village!` : (r.error ?? null));
+      setSection('shop');
+    });
+  }, [auth]);
+  useEffect(() => {
+    if (!purchase) return;
+    const t = setTimeout(() => setPurchase(null), 7000);
+    return () => clearTimeout(t);
+  }, [purchase]);
 
   useEffect(() => {
     void store.boot();
@@ -137,7 +156,7 @@ export function App() {
   return (
     <div className={`app h-full ${prefs.reduceMotion ? 'reduce-motion' : ''}`}>
       <main className="stage-area h-full" aria-label="Village">
-        {snapshot && <Village3D onSelect={select} selectedId={profile} reduceMotion={prefs.reduceMotion} period={period} insets={insets} kiosk={kiosk} quality={quality} />}
+        {snapshot && <Village3D onSelect={select} selectedId={profile} reduceMotion={prefs.reduceMotion} period={period} insets={insets} kiosk={kiosk} quality={quality} island={prefs.island ?? 'nocturne'} />}
         {!kiosk && <TopBar compact={!wide} onKiosk={() => void enterKiosk()} />}
         {!kiosk && wide && <IconRail section={section} onSection={openSection} onKiosk={() => void enterKiosk()} />}
         {showTicker && <Ticker onOpen={() => openSection('feed')} onAgent={openProfile} style={{ right: drawerOpen ? drawerW + 28 : 12 }} />}
@@ -145,7 +164,7 @@ export function App() {
         {!kiosk && !wide && <TabBar section={profile ? 'village' : section} onSection={openSection} />}
         {empty && (
           <div className="absolute inset-0 z-10 grid place-items-center">
-            <div className="smoke rounded-[18px] p-6 text-center">
+            <div className="smoke relative rounded-[18px] p-6 text-center">
               <p className="mb-3 text-[15px] font-semibold">The village is empty.</p>
               <button className="btn btn-primary" onClick={() => edit(null)}>
                 <Plus size={16} /> Add your first agent
@@ -156,7 +175,7 @@ export function App() {
         <AnimatePresence>
           {offlineLong && (
             <motion.div key="offline" role="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-3 top-24 z-30 flex justify-center">
-              <div className="smoke flex items-center gap-2 rounded-[12px] px-4 py-2 text-[13px]">
+              <div className="smoke relative flex items-center gap-2 rounded-[12px] px-4 py-2 text-[13px]">
                 <WifiOff size={15} className="flex-none text-[var(--st-error)]" /> Lost connection to the hub. Statuses may be out of date. Reconnecting…
               </div>
             </motion.div>
@@ -164,14 +183,22 @@ export function App() {
         </AnimatePresence>
         {!kiosk && <Toasts onOpen={openProfile} style={{ right: drawerOpen && wide ? drawerW + 28 : 12, bottom: showTicker ? 80 : phone ? 184 : 100 }} />}
         {kiosk && <KioskHud onExit={exitKiosk} />}
+        <AnimatePresence>
+          {purchase && (
+            <motion.div key="purchase" role="status" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-x-3 top-24 z-[3600] flex justify-center">
+              <div className="lg relative rounded-full px-5 py-2.5 text-[13.5px] font-medium">{purchase}</div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       <ActivityFeed open={section === 'feed' && !kiosk} focus={feedFocus} onClose={closePanel} onAgent={openProfile} />
       <TasksView open={section === 'tasks' && !kiosk} onClose={closePanel} onAgent={openProfile} />
       <AgentsView open={section === 'agents' && !kiosk} onClose={closePanel} onEdit={edit} onOpenProfile={openProfile} />
-      <SettingsView open={section === 'settings' && !kiosk} onClose={closePanel} />
-      <ProfilePanel agentId={kiosk ? null : profile} onClose={() => setProfile(null)} onCustomize={edit} />
-      <AgentEditor open={editor.open} agent={editor.agent} onClose={() => setEditor((e) => ({ ...e, open: false }))} />
+      <SettingsView open={section === 'settings' && !kiosk} onClose={closePanel} onShop={() => openSection('shop')} />
+      <ShopView open={section === 'shop' && !kiosk} onClose={closePanel} />
+      <ProfilePanel agentId={kiosk ? null : profile} onClose={() => setProfile(null)} onCustomize={edit} onShop={() => openSection('shop')} />
+      <AgentEditor open={editor.open} agent={editor.agent} onClose={() => setEditor((e) => ({ ...e, open: false }))} onShop={() => openSection('shop')} />
     </div>
   );
 }
@@ -220,10 +247,10 @@ function KioskHud({ onExit }: { onExit: () => void }) {
         )}
       </div>
       <div className="safe-top absolute right-5 top-5 z-30 flex gap-2 transition-opacity duration-500" style={{ opacity: awake ? 1 : 0 }}>
-        <button className="smoke flex h-10 items-center gap-2 rounded-[12px] px-3.5 text-[13.5px] font-medium" onClick={() => setDim((v) => !v)} aria-pressed={dim}>
+        <button className="smoke relative flex h-10 items-center gap-2 rounded-[12px] px-3.5 text-[13.5px] font-medium" onClick={() => setDim((v) => !v)} aria-pressed={dim}>
           <SunDim size={16} /> {dim ? 'Brighten' : 'Dim'}
         </button>
-        <button className="smoke flex h-10 items-center gap-2 rounded-[12px] px-3.5 text-[13.5px] font-medium" onClick={onExit}>
+        <button className="smoke relative flex h-10 items-center gap-2 rounded-[12px] px-3.5 text-[13.5px] font-medium" onClick={onExit}>
           <Minimize2 size={16} /> Exit kiosk
         </button>
       </div>

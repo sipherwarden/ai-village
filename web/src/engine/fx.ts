@@ -217,6 +217,8 @@ export function stars(count = 1400) {
       }`,
     fragmentShader: /* glsl */ `
       uniform float uOpacity;
+      uniform vec3 uA;
+      uniform vec3 uB;
       varying float vA;
       void main() {
         float d = length(gl_PointCoord - 0.5);
@@ -249,7 +251,9 @@ export function bokeh(count = 26) {
   return { group, mats };
 }
 
-export function motes(count = 180, radius = 13) {
+/** Drifting particles: motes and fireflies by default; falling petals or snow, or rising embers. */
+export function motes(opts: { count?: number; radius?: number; a?: string; b?: string; fall?: number; rise?: number; size?: number } = {}) {
+  const { count = 180, radius = 13 } = opts;
   const r = rng(17);
   const pos = new Float32Array(count * 3);
   const seed = new Float32Array(count);
@@ -266,7 +270,15 @@ export function motes(count = 180, radius = 13) {
   g.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
   g.setAttribute('warm', new THREE.BufferAttribute(warm, 1));
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uOpacity: { value: 1 }, uPixel: { value: 1 } },
+    uniforms: {
+      uTime: { value: 0 },
+      uOpacity: { value: 1 },
+      uPixel: { value: opts.size ?? 1 },
+      uFall: { value: opts.fall ?? 0 },
+      uRise: { value: opts.rise ?? 0 },
+      uA: { value: new THREE.Color(opts.a ?? '#8cd9ff') },
+      uB: { value: new THREE.Color(opts.b ?? '#ffc766') },
+    },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -275,12 +287,17 @@ export function motes(count = 180, radius = 13) {
       attribute float warm;
       uniform float uTime;
       uniform float uPixel;
+      uniform float uFall;
+      uniform float uRise;
       varying float vA;
       varying float vWarm;
       void main() {
         vec3 p = position;
         float t = uTime * (0.12 + seed * 0.18) + seed * 30.0;
-        p += vec3(sin(t) * 0.6, sin(t * 1.3) * 0.35, cos(t * 0.8) * 0.6);
+        float drift = 1.0 + (uFall + uRise) * 1.5;
+        p += vec3(sin(t) * 0.6 * drift, sin(t * 1.3) * 0.35, cos(t * 0.8) * 0.6 * drift);
+        // falling petals and snow, or rising embers, loop through a 9-unit column
+        p.y = mod(p.y + 1.5 - uTime * uFall * (0.5 + seed * 0.7) + uTime * uRise * (0.5 + seed * 0.7), 9.0) - 1.5;
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
         vA = 0.25 + 0.75 * (0.5 + 0.5 * sin(uTime * (0.7 + seed) + seed * 20.0));
         vWarm = warm;
@@ -294,7 +311,7 @@ export function motes(count = 180, radius = 13) {
       void main() {
         float d = length(gl_PointCoord - 0.5);
         float a = smoothstep(0.5, 0.0, d) * vA * uOpacity;
-        vec3 c = mix(vec3(0.55, 0.85, 1.0), vec3(1.0, 0.78, 0.4), vWarm);
+        vec3 c = mix(uA, uB, vWarm);
         gl_FragColor = vec4(c * a * 1.6, a);
       }`,
   });

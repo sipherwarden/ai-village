@@ -1,0 +1,429 @@
+/* Liquid Glass: translucent surfaces with a specular rim, a soft top sheen, strong blur with boosted
+   saturation, and capsule controls floating over the village. Loaded after hud.css, so the HUD's
+   .smoke surfaces become liquid glass too. */
+
+:root {
+  --lg-radius: 24px;
+  --lg-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+}
+[data-theme='dark'] {
+  --lg-fill: linear-gradient(180deg, rgb(255 255 255 / 0.13), rgb(255 255 255 / 0.05) 45%, rgb(255 255 255 / 0.07));
+  --lg-fill-strong: linear-gradient(180deg, rgb(28 34 52 / 0.72), rgb(16 20 34 / 0.78));
+  --lg-rim: linear-gradient(140deg, rgb(255 255 255 / 0.6), rgb(255 255 255 / 0.08) 32%, rgb(255 255 255 / 0.03) 62%, rgb(255 255 255 / 0.32));
+  --lg-sheen: rgb(255 255 255 / 0.16);
+  --lg-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.75), 0 2px 8px -2px rgb(0 0 0 / 0.35);
+  --lg-btn: rgb(255 255 255 / 0.1);
+  --lg-btn-hover: rgb(255 255 255 / 0.18);
+  --lg-ink: #f8fafc;
+}
+[data-theme='light'] {
+  --lg-fill: linear-gradient(180deg, rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.4) 45%, rgb(255 255 255 / 0.5));
+  --lg-fill-strong: linear-gradient(180deg, rgb(255 255 255 / 0.82), rgb(246 248 252 / 0.86));
+  --lg-rim: linear-gradient(140deg, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.3) 32%, rgb(15 23 42 / 0.06) 62%, rgb(255 255 255 / 0.8));
+  --lg-sheen: rgb(255 255 255 / 0.5);
+  --lg-shadow: 0 24px 60px -26px rgb(30 41 80 / 0.45), 0 2px 8px -2px rgb(30 41 80 / 0.15);
+  --lg-btn: rgb(15 23 42 / 0.06);
+  --lg-btn-hover: rgb(15 23 42 / 0.11);
+  --lg-ink: #0f172a;
+}
+
+/* No position here: HUD pieces are absolute, drawers fixed. Anything in normal flow that uses
+   .lg or .smoke must be positioned (relative) so the rim and sheen layers stay inside it. */
+.lg,
+.smoke {
+  isolation: isolate;
+  background: var(--lg-fill);
+  border: 0;
+  box-shadow: inset 0 1px 0.5px rgb(255 255 255 / 0.28), inset 0 -1px 1px rgb(0 0 0 / 0.12), var(--lg-shadow);
+  backdrop-filter: blur(26px) saturate(190%) brightness(1.06);
+  -webkit-backdrop-filter: blur(26px) saturate(190%) brightness(1.06);
+}
+/* specular rim: a gradient hairline drawn with a mask so it follows any radius */
+.lg::before,
+.smoke::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--lg-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* soft light caught along the top edge */
+.lg::after,
+.smoke::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: -1;
+  height: 60%;
+  border-radius: inherit;
+  background: radial-gradient(120% 90% at 50% -25%, var(--lg-sheen), transparent 62%);
+  pointer-events: none;
+}
+.drawer.smoke,
+.shop.lg {
+  background: var(--lg-fill-strong);
+}
+
+/* bigger, softer radii everywhere the HUD floats */
+.hud-top {
+  border-radius: 26px;
+  height: 58px;
+}
+.hud-rail {
+  border-radius: 30px;
+}
+.hud-ticker {
+  border-radius: 24px;
+}
+.hud-tabs {
+  border-radius: 30px;
+}
+.deck-card {
+  border-radius: 22px;
+}
+.drawer.smoke {
+  border-radius: 28px !important;
+}
+
+/* ---- buttons: glass capsules */
+.btn,
+.lg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--lg-btn);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.2s, transform 0.25s var(--lg-ease), box-shadow 0.2s;
+}
+.btn:hover,
+.lg-btn:hover {
+  background: var(--lg-btn-hover);
+  border-color: transparent;
+}
+.btn:active,
+.lg-btn:active {
+  transform: scale(0.96);
+}
+.btn-primary,
+.lg-btn.primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, white 8%), var(--accent));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 8px 22px -10px var(--accent);
+  color: var(--accent-ink);
+}
+.btn-primary:hover,
+.lg-btn.primary:hover {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, white 20%), var(--accent));
+}
+.lg-btn:disabled {
+  opacity: 0.5;
+  transform: none;
+  cursor: default;
+}
+.lg-btn.icon {
+  width: 36px;
+  padding: 0;
+}
+.icon-btn {
+  border-radius: 999px;
+}
+.icon-btn:hover,
+.icon-btn[aria-pressed='true'] {
+  background: var(--lg-btn-hover);
+}
+
+.rail-btn {
+  border-radius: 999px;
+}
+.rail-btn:hover,
+.rail-btn[aria-current='page'] {
+  background: var(--lg-btn-hover);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+.rail-btn[aria-current='page']::before {
+  display: none;
+}
+.rail-btn::after {
+  border-radius: 999px;
+  padding: 6px 12px;
+  backdrop-filter: blur(20px) saturate(180%);
+}
+.tab-btn {
+  border-radius: 999px;
+}
+.tab-btn[aria-current='page'] {
+  background: var(--lg-btn-hover);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
+}
+.mode-pill {
+  height: 30px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+
+/* segmented control (inspector tabs, shop tabs) */
+.tabs,
+.lg-segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--lg-btn);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.18);
+}
+.tab,
+.lg-segmented button {
+  flex: 1;
+  height: 32px;
+  border-radius: 999px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 650;
+  transition: background 0.25s var(--lg-ease), color 0.2s;
+}
+.lg-segmented button {
+  letter-spacing: 0.01em;
+}
+.tab[aria-selected='true'],
+.lg-segmented button[aria-selected='true'] {
+  background: var(--lg-fill);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3), 0 4px 12px -6px rgb(0 0 0 / 0.5);
+  color: var(--text);
+}
+
+/* sections inside drawers become inner glass panes */
+.drawer .section {
+  border-radius: 20px;
+  background: rgb(255 255 255 / 0.05);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07);
+}
+[data-theme='light'] .drawer .section {
+  background: rgb(255 255 255 / 0.55);
+}
+.live-portrait {
+  border-radius: 22px;
+}
+
+/* village badges: small glass capsules */
+.badge-pill,
+.badge-caption {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.06));
+  border: 0;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.1), 0 8px 22px -10px rgb(0 0 0 / 0.8);
+  backdrop-filter: blur(18px) saturate(190%);
+  -webkit-backdrop-filter: blur(18px) saturate(190%);
+  color: #fff;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+}
+.badge-caption {
+  border-radius: 14px;
+}
+
+/* ---- small pieces used by the shop and pickers */
+.lg-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--lg-btn);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+.lg-chip.owned {
+  color: var(--st-working);
+}
+.lg-note {
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgb(56 189 248 / 0.12);
+  color: var(--text-2);
+  font-size: 13px;
+}
+.lg-note.warn {
+  background: rgb(245 158 11 / 0.14);
+  color: var(--st-waiting);
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 14px;
+}
+.shop-grid.deals {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.shop-card,
+.deck-card {
+  position: relative;
+}
+.shop-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 24px;
+  transition: transform 0.35s var(--lg-ease);
+}
+.shop-card:hover {
+  transform: translateY(-3px) scale(1.01);
+}
+.shop-card > button,
+.shop-card > .lg-chip {
+  margin-top: auto;
+}
+.shop-preview {
+  display: grid;
+  place-items: center;
+  height: 112px;
+  border-radius: 18px;
+  background: radial-gradient(70% 70% at 50% 40%, rgb(255 255 255 / 0.1), transparent 70%);
+}
+.shop-card.big .shop-preview {
+  height: 138px;
+}
+.deal-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fb7185, #e11d48);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  box-shadow: 0 6px 14px -6px #e11d48;
+}
+.island-swatch {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+}
+.island-top {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 44%;
+  height: 22%;
+  border-radius: 40%;
+  transform: perspective(80px) rotateX(38deg);
+}
+.island-side {
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  top: 60%;
+  height: 26%;
+  clip-path: polygon(0 0, 100% 0, 62% 100%, 40% 100%);
+}
+.island-tree {
+  position: absolute;
+  top: 34%;
+  width: 14%;
+  height: 16%;
+  margin-left: -7%;
+  border-radius: 50%;
+}
+.island-pool {
+  position: absolute;
+  left: 42%;
+  top: 50%;
+  width: 16%;
+  height: 6%;
+  border-radius: 50%;
+}
+.emote-tile {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.04));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35);
+  color: var(--text);
+}
+.emote-tile svg {
+  width: 44%;
+  height: 44%;
+}
+.emote-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.emote-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: var(--lg-btn);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.15);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: transform 0.25s var(--lg-ease), background 0.2s;
+}
+.emote-btn svg {
+  width: 15px;
+  height: 15px;
+}
+.emote-btn:hover {
+  background: var(--lg-btn-hover);
+}
+.emote-btn:active {
+  transform: scale(0.93);
+}
+.emote-btn[data-locked] {
+  opacity: 0.55;
+}
+.pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+}
+.pick {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 18px;
+  background: var(--lg-btn);
+  font-size: 12px;
+  font-weight: 600;
+  transition: transform 0.25s var(--lg-ease), background 0.2s;
+}
+.pick:hover {
+  background: var(--lg-btn-hover);
+}
+.pick[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.pick[data-locked] {
+  opacity: 0.6;
+}
+.pick .lock {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: var(--text-3);
+}

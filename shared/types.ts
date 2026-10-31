@@ -63,10 +63,20 @@ export type Accessory =
   | 'leaf'
   | 'crown'
   | 'visor'
-  | 'scarf';
+  | 'scarf'
+  | 'party-hat'
+  | 'halo'
+  | 'top-hat'
+  | 'wizard-hat'
+  | 'cat-ears'
+  | 'flower'
+  | 'bowtie'
+  | 'cape'
+  | 'backpack'
+  | 'jetpack';
 export type ExpressionStyle = 'friendly' | 'focused' | 'sleepy' | 'cheerful';
 /** Character design. Also decides the agent's workstation in the village. */
-export type Archetype = 'explorer' | 'scholar' | 'host' | 'builder' | 'sprite';
+export type Archetype = 'explorer' | 'scholar' | 'host' | 'builder' | 'sprite' | 'sentinel' | 'alchemist' | 'conductor' | 'wisp';
 
 export interface Appearance {
   /** Missing on agents saved before 2.0; the UI derives one from the voice style. */
@@ -200,6 +210,8 @@ export interface Preferences {
   lighting?: 'auto' | 'dawn' | 'day' | 'dusk' | 'night';
   /** Bottom activity ticker. */
   dock?: boolean;
+  /** Which island the village is built on (see shared/cosmetics.ts). */
+  island?: 'nocturne' | 'sakura' | 'glacier' | 'ember' | 'verdant';
   /** 3D render quality; auto picks by device. */
   quality?: 'auto' | 'high' | 'balanced' | 'saver';
   layout: 'scattered' | 'circle' | 'row';

@@ -8,7 +8,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
-import type { AgentState, Archetype } from '../../../shared/types.ts';
+import type { Accessory, AgentState, Archetype } from '../../../shared/types.ts';
+import { ACCESSORY_IDS, EMOTE_IDS, type Emote } from '../../../shared/cosmetics.ts';
 import { Creature, IDENTITY } from './creature.ts';
 import { materials } from './materials.ts';
 
@@ -17,7 +18,11 @@ const ARCHETYPES: { id: Archetype; name: string; color: string }[] = [
   { id: 'scholar', name: 'Claude', color: IDENTITY.scholar.primary },
   { id: 'host', name: 'ChatGPT', color: IDENTITY.host.primary },
   { id: 'builder', name: 'OpenCode', color: IDENTITY.builder.primary },
-  { id: 'sprite', name: 'Custom', color: '#F43F5E' },
+  { id: 'sprite', name: 'Custom', color: '#38BDF8' },
+  { id: 'sentinel', name: 'Sentinel', color: IDENTITY.sentinel.primary },
+  { id: 'alchemist', name: 'Alchemist', color: IDENTITY.alchemist.primary },
+  { id: 'conductor', name: 'Conductor', color: IDENTITY.conductor.primary },
+  { id: 'wisp', name: 'Wisp', color: IDENTITY.wisp.primary },
 ];
 const TONE: Record<string, ToneMappingMode> = { aces: ToneMappingMode.ACES_FILMIC, agx: ToneMappingMode.AGX, neutral: ToneMappingMode.NEUTRAL };
 const STATES: AgentState[] = ['IDLE', 'WORKING', 'THINKING', 'WAITING', 'COMPLETED', 'ERROR', 'OFFLINE', 'UNKNOWN', 'ONLINE'];
@@ -47,8 +52,11 @@ function Label({ text }: { text: string }) {
   );
 }
 
-function Actor({ archetype, color, state, position, focused, label }: { archetype: Archetype; color: string; state: AgentState; position: [number, number, number]; focused?: boolean; label?: string }) {
-  const creature = useMemo(() => new Creature({ id: `${archetype}-${position.join(',')}`, archetype, color }), [archetype, color, position]);
+function Actor({ archetype, color, state, position, focused, label, accessory, emote }: { archetype: Archetype; color: string; state: AgentState; position: [number, number, number]; focused?: boolean; label?: string; accessory?: Accessory; emote?: { kind: Emote; n: number } }) {
+  const creature = useMemo(() => new Creature({ id: `${archetype}-${position.join(',')}`, archetype, color, accessory }), [archetype, color, position, accessory]);
+  useEffect(() => {
+    if (emote) creature.play(emote.kind);
+  }, [creature, emote]);
   useEffect(() => () => creature.dispose(), [creature]);
   useEffect(() => creature.setState(state), [creature, state]);
   useEffect(() => creature.setFocused(!!focused), [creature, focused]);
@@ -160,11 +168,13 @@ export function Lab() {
   const [state, setState] = useState<AgentState>((params.get('state') as AgentState) ?? 'IDLE');
   const [silhouette, setSilhouette] = useState(params.get('silhouette') === '1');
   const [focus, setFocus] = useState(false);
+  const [accessory, setAccessory] = useState<Accessory>((params.get('acc') as Accessory) ?? 'none');
+  const [emote, setEmote] = useState<{ kind: Emote; n: number } | undefined>();
   const [stats, setStats] = useState('');
 
   const actors = useMemo(() => {
     if (view === 'lineup') {
-      return ARCHETYPES.map((a, i) => ({ key: a.id, archetype: a.id, color: a.color, state, position: [(i - 2) * 1.75, 0, i % 2 ? -0.5 : 0.3] as [number, number, number], label: a.name.toUpperCase() }));
+      return ARCHETYPES.map((a, i) => ({ key: a.id, archetype: a.id, color: a.color, state, position: [(i - 4) * 1.55, 0, i % 2 ? -0.6 : 0.4] as [number, number, number], label: a.name.toUpperCase() }));
     }
     const a = ARCHETYPES.find((x) => x.id === arch)!;
     if (view === 'portrait') return [{ key: a.id, archetype: a.id, color: a.color, state, position: [0, 0, 0] as [number, number, number], label: '' }];
@@ -173,7 +183,7 @@ export function Lab() {
 
   const camera =
     view === 'lineup'
-      ? { position: [0, 2.9, 10] as [number, number, number], fov: 28 }
+      ? { position: [0, 3.4, 17] as [number, number, number], fov: 28 }
       : view === 'portrait'
         ? { position: [1.2, 1.7, 4.6] as [number, number, number], fov: 28 }
         : { position: [0, 8.5, 12.5] as [number, number, number], fov: 28 };
@@ -191,9 +201,9 @@ export function Lab() {
     <div style={{ position: 'fixed', inset: 0, background: '#060914' }}>
       <Canvas key={view} shadows="percentage" dpr={[1, 2]} camera={camera} gl={{ antialias: false, powerPreference: 'high-performance' }}>
         <Rig silhouette={silhouette} />
-        {!silhouette && <Stage radius={view === 'lineup' ? 6 : 5} />}
+        {!silhouette && <Stage radius={view === 'lineup' ? 8.5 : 5} />}
         {actors.map((a) => (
-          <Actor key={a.key} archetype={a.archetype} color={a.color} state={a.state} position={a.position} label={silhouette ? undefined : a.label} focused={focus} />
+          <Actor key={a.key} archetype={a.archetype} color={a.color} state={a.state} position={a.position} label={silhouette ? undefined : a.label} focused={focus} accessory={accessory} emote={emote} />
         ))}
         <OrbitControls target={[0, view === 'lineup' ? 0.85 : view === 'portrait' ? 0.95 : 0.4, 0]} enableDamping makeDefault />
         {!silhouette && (
@@ -222,6 +232,15 @@ export function Lab() {
         <span style={{ width: 10 }} />
         <button style={btn(silhouette)} onClick={() => setSilhouette((v) => !v)}>Silhouette test</button>
         <button style={btn(focus)} onClick={() => setFocus((v) => !v)}>Select</button>
+        <select value={accessory} onChange={(e) => setAccessory(e.target.value as Accessory)} style={btn(accessory !== 'none')} aria-label="Accessory">
+          {ACCESSORY_IDS.map((a) => (
+            <option key={a} value={a}>{a}</option>
+          ))}
+        </select>
+        <span style={{ flexBasis: '100%' }} />
+        {EMOTE_IDS.map((e) => (
+          <button key={e} style={btn(emote?.kind === e)} onClick={() => setEmote({ kind: e, n: Date.now() })}>{e}</button>
+        ))}
         <span style={{ marginLeft: 'auto', font: '500 11px/1 "JetBrains Mono", monospace', color: '#64748b' }}>{stats}</span>
       </div>
     </div>

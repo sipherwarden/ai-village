@@ -4,8 +4,13 @@ import type { HubSettings, Preferences } from '../../../shared/types.ts';
 import { api } from '../lib/api.ts';
 import { store, useStore } from '../lib/store.ts';
 import { Segmented, Sheet, Toggle } from './ui.tsx';
+import { ISLANDS } from '../../../shared/cosmetics.ts';
+import { isOwned, useShop } from '../lib/shop.ts';
+import { ItemPreview } from './ShopView.tsx';
+import { Lock } from 'lucide-react';
 
-export function SettingsView({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function SettingsView({ open, onClose, onShop }: { open: boolean; onClose: () => void; onShop: () => void }) {
+  const shop = useShop();
   const prefs = useStore((s) => s.prefs);
   const hub = useStore((s) => s.snapshot?.hub);
   const [secrets, setSecrets] = useState<{ name: string; usedBy: string[] }[]>([]);
@@ -40,12 +45,21 @@ export function SettingsView({ open, onClose }: { open: boolean; onClose: () => 
               <span className="mb-1 block text-[12.5px] text-ink-2">Panels and controls</span>
               <Segmented value={prefs.theme} onChange={(v) => p({ theme: v })} options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }, { value: 'auto', label: 'Auto' }]} />
             </div>
-            <div className="flex items-center gap-3 rounded-[12px] bg-glass-2 p-3">
-              <span className="h-10 w-14 flex-none rounded-[6px]" style={{ background: 'linear-gradient(180deg, var(--sky-0), var(--sky-2))', boxShadow: 'inset 0 0 0 3px var(--frame)' }} aria-hidden />
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13.5px] font-semibold">Studio</span>
-                <span className="block text-[12px] text-ink-3">A workspace with one desk per agent. The window view follows the time of day below.</span>
-              </span>
+            <div>
+              <span className="mb-1.5 block text-[12.5px] text-ink-2">Island</span>
+              <div className="pick-grid">
+                {ISLANDS.map((i) => {
+                  const owned = isOwned(shop, i.id);
+                  const on = (prefs.island ?? 'nocturne') === i.value;
+                  return (
+                    <button key={i.id} className="pick" aria-pressed={on} data-locked={!owned || undefined} title={owned ? i.blurb : `${i.name} is in the shop`} onClick={() => (owned ? p({ island: i.value as Preferences['island'] }) : onShop())}>
+                      {!owned && <Lock size={13} className="lock" />}
+                      <ItemPreview item={i} size={52} />
+                      {i.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <span className="mb-1 block text-[12.5px] text-ink-2">Time of day</span>
@@ -62,7 +76,20 @@ export function SettingsView({ open, onClose }: { open: boolean; onClose: () => 
               />
             </div>
           </div>
-          <Toggle checked={prefs.dock !== false} onChange={(v) => p({ dock: v })} label="Activity bar" hint="The latest real event and the last hour, along the bottom of the studio." />
+          <div className="py-2">
+            <span className="mb-1 block text-[12.5px] text-ink-2">3D quality</span>
+            <Segmented
+              value={prefs.quality ?? 'auto'}
+              onChange={(v) => p({ quality: v })}
+              options={[
+                { value: 'auto', label: 'Auto' },
+                { value: 'high', label: 'High' },
+                { value: 'balanced', label: 'Balanced' },
+                { value: 'saver', label: 'Battery saver' },
+              ]}
+            />
+          </div>
+          <Toggle checked={prefs.dock !== false} onChange={(v) => p({ dock: v })} label="Activity bar" hint="The latest real event and the last hour, along the bottom of the village." />
           <Toggle checked={prefs.reduceMotion} onChange={(v) => p({ reduceMotion: v })} label="Reduce motion" hint="Characters stay in place. States still change. Saves battery." />
           <Toggle checked={prefs.bubbles} onChange={(v) => p({ bubbles: v })} label="Event captions" hint="A short line under an agent's name when a real event happens." />
           <Toggle checked={prefs.sound} onChange={(v) => p({ sound: v })} label="Sound effects" hint="A soft chime per agent for finished, waiting and error events." />
@@ -91,7 +118,7 @@ export function SettingsView({ open, onClose }: { open: boolean; onClose: () => 
             <Toggle
               checked={hub.demoMode}
               onChange={(v) => void h({ demoMode: v })}
-              label="Demonstration mode"
+              label="Simulation Lab"
               hint="Shows simulated activity so you can try the visuals. Clearly labeled everywhere, kept apart from real data, and deleted when you turn it off."
             />
             <Toggle checked={hub.captureDetails} onChange={(v) => void h({ captureDetails: v })} label="Show tool details" hint="File names, command descriptions and search queries. Command arguments and file contents are never collected." />

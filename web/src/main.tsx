@@ -5,6 +5,7 @@ import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/600.css';
 import './styles.css';
 import './hud.css';
+import './glass.css';
 import { App } from './App.tsx';
 
 // ?lab=characters and ?lab=world open the design labs (simulated cast, no data, no API calls).

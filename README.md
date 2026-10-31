@@ -25,6 +25,11 @@ estimated unless you switch on the clearly labeled Simulation Lab.
   with durations and token counts (when the agent reports them), and alerts when an agent needs you.
 - **Every screen**: desktop, iPad (landscape or portrait) and iPhone. Add it to your home screen
   as an app. Kiosk mode turns a spare tablet into an always-on status display.
+- **Make it yours**: nine characters, twenty accessories, five islands (Nocturne, Sakura, Glacier,
+  Ember, Verdant) and twelve emotes. Characters fidget, stretch and wave on their own while idle.
+- **A shop with daily deals** for extra characters, accessories, islands and emotes, paid through
+  Stripe. Everything the monitor does is free; the shop is purely cosmetic (see [docs/SHOP.md](docs/SHOP.md)).
+- **Liquid Glass interface**: translucent capsule controls and panels floating over the village.
 - **Private by design**: runs on your computer, reachable only from your own network, password
   protected, and never records prompt text or file contents (see [Privacy](#privacy)).
 
@@ -91,7 +96,9 @@ exact request format. Agents on other machines need a per-agent ingest token, wh
 - API keys you store are encrypted on disk (Windows DPAPI, or AES-256-GCM with an owner-only key
   file on macOS and Linux) and are never sent to the browser.
 - Nothing is sent to any outside service except optional checks of the providers' public status
-  pages, which you can turn off in Settings (**Check provider status pages**).
+  pages, which you can turn off in Settings (**Check provider status pages**). When you buy
+  something in the shop, your browser (not the hub) talks to the shop server and Stripe.
+- Emotes and idle fidgets are decoration: they never change an agent's reported state.
 
 See [SECURITY.md](SECURITY.md) for the security model and how to report a vulnerability.
 
@@ -146,7 +153,8 @@ hooks/    emit.mjs, the reporter called by agent hooks
 scripts/  launcher, hook installer, dev runner
 ```
 
-Add a new integration by adding an adapter to `server/adapters.ts`.
+Add a new integration by adding an adapter to `server/adapters.ts`. The cosmetic catalog and
+daily-deal rules live in `shared/cosmetics.ts`; the shop server is in `shop-server/`.
 
 [STATUS.md](STATUS.md) lists what is finished, what is partial and what is planned.
 

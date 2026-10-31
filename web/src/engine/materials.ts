@@ -70,9 +70,9 @@ function flagstones(ctx: CanvasRenderingContext2D, s: number) {
       const n = fbm(x / 22, y / 22, 3) * 10;
       const base = 104 + pts[best].shade * 38 + n * 1.6;
       const i = (y * s + x) * 4;
-      img.data[i] = (base - 4) * (1 - grout * 0.72);
-      img.data[i + 1] = (base + 2) * (1 - grout * 0.72);
-      img.data[i + 2] = (base + 16) * (1 - grout * 0.7);
+      img.data[i] = base * (1 - grout * 0.72);
+      img.data[i + 1] = base * (1 - grout * 0.72);
+      img.data[i + 2] = (base + 4) * (1 - grout * 0.7);
       img.data[i + 3] = 255;
     }
   }
@@ -89,9 +89,9 @@ export function materials() {
 function createMaterials() {
   const tex = {
     flagstone: canvasTexture(512, flagstones, { repeat: 1 }),
-    moss: canvasTexture(256, (c, s) => noiseFill(c, s, [96, 150, 104], 80, 18, 3)),
+    moss: canvasTexture(256, (c, s) => noiseFill(c, s, [150, 150, 150], 80, 18, 3)),
     basalt: canvasTexture(256, (c, s) => {
-      noiseFill(c, s, [112, 118, 134], 70, 30, 9);
+      noiseFill(c, s, [122, 122, 126], 70, 30, 9);
       // horizontal strata streaks
       c.globalAlpha = 0.18;
       const r = rng(5);
