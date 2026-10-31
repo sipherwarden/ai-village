@@ -38,7 +38,7 @@ estimated unless you switch on the clearly labeled Simulation Lab.
 ## Quick start
 
 ```bash
-git clone https://github.com/<your-account>/ai-village.git
+git clone https://github.com/sipherwarden/ai-village.git
 cd ai-village
 npm install
 npm start
