@@ -1,0 +1,14 @@
+node_modules/
+web/dist/
+data/
+*.dpapi
+*.enc
+master.key
+*.db
+*.db-shm
+*.db-wal
+*.log
+.env
+.env.*
+.DS_Store
+Thumbs.db

@@ -1,0 +1,439 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme inline {
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-ink-3: var(--text-3);
+  --color-line: var(--hairline);
+  --color-glass: var(--surface-2);
+  --color-glass-2: var(--surface-3);
+  --color-panel: var(--surface-1);
+  --color-accent: var(--accent);
+  --color-base: var(--bg);
+  --font-sans: var(--font);
+  --font-display: var(--font);
+}
+
+/* ============================================================== design tokens
+   One neutral surface ramp, one accent, six status colors. No neon, no gradients on chrome. */
+
+:root {
+  --font: 'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --rail-w: 248px;
+  --inspector-w: 400px;
+
+  /* status palette from the visual package */
+  --st-online: #38bdf8;
+  --st-idle: #38bdf8;
+  --st-working: #10b981;
+  --st-thinking: #a855f7;
+  --st-waiting: #f59e0b;
+  --st-completed: #facc15;
+  --st-error: #ef4444;
+  --st-offline: #64748b;
+  --st-unknown: #94a3b8;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0b0d12;
+  --surface-1: #11141b;
+  --surface-2: #171b24;
+  --surface-3: #1f2430;
+  --hairline: rgb(255 255 255 / 0.075);
+  --hairline-strong: rgb(255 255 255 / 0.13);
+  --text: #eceef4;
+  --text-2: #a9aebd;
+  --text-3: #7f8597;
+  --accent: #8ea8ff;
+  --accent-ink: #0b0d12;
+  --overlay: rgb(11 13 18 / 0.72);
+  --shadow: 0 30px 60px -30px rgb(0 0 0 / 0.8);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #eef0f4;
+  --surface-1: #ffffff;
+  --surface-2: #f4f5f8;
+  --surface-3: #e9ecf1;
+  --hairline: rgb(15 20 35 / 0.08);
+  --hairline-strong: rgb(15 20 35 / 0.14);
+  --text: #12151d;
+  --text-2: #4a5060;
+  --text-3: #666c7d;
+  --accent: #3d5afe;
+  --accent-ink: #ffffff;
+  --overlay: rgb(255 255 255 / 0.78);
+  --shadow: 0 30px 60px -32px rgb(20 30 60 / 0.35);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  /* clip (not hidden) also blocks programmatic scrolling, so focus can never shift the layout */
+  overflow: clip;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+button {
+  cursor: pointer;
+}
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ============================================================== components */
+
+@layer components {
+  .glass {
+    background: var(--surface-1);
+    border: 1px solid var(--hairline);
+    box-shadow: var(--shadow);
+  }
+  .hud {
+    background: var(--overlay);
+    border: 1px solid var(--hairline);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    font-size: 12.5px;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 10px;
+    background: var(--surface-3);
+    border: 1px solid var(--hairline);
+    font-size: 13px;
+    font-weight: 560;
+    color: var(--text);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn:hover {
+    border-color: var(--hairline-strong);
+    background: color-mix(in srgb, var(--surface-3) 85%, var(--text) 5%);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .btn-primary {
+    background: var(--accent);
+    border-color: transparent;
+    color: var(--accent-ink);
+  }
+  .btn-primary:hover {
+    background: color-mix(in srgb, var(--accent) 88%, white 12%);
+  }
+  .btn-danger {
+    color: var(--st-error);
+  }
+  .icon-btn {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    color: var(--text-2);
+    transition: background 0.15s, color 0.15s;
+  }
+  .icon-btn:hover,
+  .icon-btn[aria-pressed='true'] {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+  .field {
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    outline: none;
+  }
+  textarea.field {
+    height: auto;
+    padding: 10px 12px;
+    resize: vertical;
+  }
+  .field:focus {
+    border-color: var(--accent);
+  }
+  .label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    text-transform: uppercase;
+  }
+  .section {
+    border-radius: 14px;
+    background: var(--surface-2);
+    padding: 14px 16px;
+  }
+  .scroll-y {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 10px;
+    color: var(--text-2);
+    font-size: 13.5px;
+    font-weight: 520;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-item:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .nav-item[aria-current='page'] {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+}
+
+/* status classes */
+.st-ONLINE { --st: var(--st-online); }
+.st-IDLE { --st: var(--st-idle); }
+.st-WORKING { --st: var(--st-working); }
+.st-THINKING { --st: var(--st-thinking); }
+.st-WAITING { --st: var(--st-waiting); }
+.st-COMPLETED { --st: var(--st-completed); }
+.st-ERROR { --st: var(--st-error); }
+.st-OFFLINE { --st: var(--st-offline); }
+.st-UNKNOWN { --st: var(--st-unknown); }
+
+.state-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--st);
+  flex: none;
+}
+.st-UNKNOWN .state-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--st);
+}
+.st-WORKING .state-dot,
+.st-THINKING .state-dot,
+.st-WAITING .state-dot,
+.st-ERROR .state-dot {
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--st) 45%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--st) 0%, transparent); }
+}
+
+/* ============================================================== shell */
+
+.stage-area {
+  position: relative;
+  overflow: clip;
+}
+
+/* ============================================================== reduced motion */
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation: none !important;
+  transition-duration: 0ms !important;
+}
+
+/* ============================================================== docs markdown */
+
+.md h2 {
+  font-size: 13.5px;
+  font-weight: 650;
+  margin: 16px 0 6px;
+}
+.md p,
+.md li {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.md ul {
+  padding-left: 18px;
+  list-style: disc;
+}
+.md pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.md code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.md p code,
+.md li code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-3);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ============================================================== 3D village */
+
+.scene3d {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  background: #060914;
+}
+.scene3d canvas {
+  display: block;
+  touch-action: none;
+}
+.badges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 0 0 4px;
+  background: none;
+  border: 0;
+  pointer-events: auto;
+  visibility: hidden;
+  will-change: transform;
+  font-family: var(--font);
+}
+.badge:focus-visible {
+  outline: none;
+}
+.badge:focus-visible .badge-pill {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border-radius: 999px;
+  background: rgb(10 15 29 / 0.78);
+  border: 1px solid rgb(255 255 255 / 0.09);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 8px 20px -10px rgb(0 0 0 / 0.8);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  color: #e8ebf3;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.badge-state {
+  font-weight: 500;
+  color: color-mix(in srgb, var(--st) 70%, white 30%);
+}
+.badge-caption {
+  order: -1;
+  max-width: 230px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgb(10 15 29 / 0.72);
+  border: 1px solid rgb(255 255 255 / 0.07);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  color: #cdd3e1;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.badge:hover .badge-pill,
+.badge[data-selected] .badge-pill {
+  border-color: color-mix(in srgb, var(--st) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--st) 22%, transparent), 0 8px 20px -10px rgb(0 0 0 / 0.8);
+}
+.kiosk .badge-pill {
+  height: 32px;
+  gap: 8px;
+  padding: 0 14px 0 11px;
+  font-size: 15.5px;
+}
+.kiosk .badge-pill .state-dot {
+  width: 10px;
+  height: 10px;
+}
+.kiosk .badge-caption {
+  max-width: 300px;
+  font-size: 14.5px;
+}
