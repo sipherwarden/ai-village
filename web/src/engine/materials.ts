@@ -191,6 +191,7 @@ export function withRim<T extends THREE.MeshStandardMaterial>(material: T, color
       );
     material.userData.shader = shader;
   };
-  material.customProgramCacheKey = () => `rim-${rimColor.getHexString()}-${strength}-${power}`;
+  // colour, strength and power are uniforms, so every rim material can share one compiled program
+  material.customProgramCacheKey = () => 'rim';
   return material;
 }

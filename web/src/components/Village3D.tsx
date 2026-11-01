@@ -266,6 +266,8 @@ function Scene({
   useEffect(() => {
     const r = new VillageRuntime({ shadows: quality === 'high' ? 'high' : quality === 'balanced' ? 'low' : 'off', particles: quality !== 'saver' && !reduceMotion, island });
     r.setLively(!reduceMotion);
+    // ?debug exposes the scene runtime for inspection in the browser console
+    if (new URLSearchParams(location.search).has('debug')) (window as unknown as { __village?: VillageRuntime }).__village = r;
     setRt(r);
     runtimeRef.current = r;
     scene.fog = r.world.fog;

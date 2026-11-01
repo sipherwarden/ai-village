@@ -286,14 +286,18 @@ export class World {
   /** Sends a glowing packet from one home to another along the conduits, via the spire. */
   sendPacket(from: Slot, to: Slot, color: THREE.ColorRepresentation) {
     const pts = [...from.route.slice().reverse(), ...to.route.slice(1)].map((p) => p.clone());
-    const p = new Packet(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), color, 2.4 + pts.length * 0.12);
+    const p = new Packet(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), color);
     this.island.add(p.group);
     this.packets.push(p);
   }
 
+  /** The first call applies immediately (no fade in from night on load); later calls crossfade. */
   setTimeOfDay(t: TimeOfDay) {
+    if (!this.timeSet) this.look = { ...this.looks[t], keyDir: [...this.looks[t].keyDir] as [number, number, number] };
+    this.timeSet = true;
     this.target = t;
   }
+  private timeSet = false;
 
   /** Island-space point to world space. */
   toWorld(p: THREE.Vector3, out = new THREE.Vector3()) {

@@ -217,8 +217,6 @@ export function stars(count = 1400) {
       }`,
     fragmentShader: /* glsl */ `
       uniform float uOpacity;
-      uniform vec3 uA;
-      uniform vec3 uB;
       varying float vA;
       void main() {
         float d = length(gl_PointCoord - 0.5);
@@ -306,6 +304,8 @@ export function motes(opts: { count?: number; radius?: number; a?: string; b?: s
       }`,
     fragmentShader: /* glsl */ `
       uniform float uOpacity;
+      uniform vec3 uA;
+      uniform vec3 uB;
       varying float vA;
       varying float vWarm;
       void main() {
@@ -339,23 +339,30 @@ export function haze() {
   return { group, mats };
 }
 
-/** A glowing packet that travels a curve over `duration` seconds, with a short fading trail. */
+const TRAIL = 12;
+
+/**
+ * A glowing packet that travels a curve at an even pace (about 4 units a second, so a handoff
+ * across the island takes a few seconds and can be seen from across the room), with a fading trail.
+ */
 export class Packet {
   readonly group = new THREE.Group();
   private sprites: THREE.Sprite[] = [];
   private age = 0;
+  private curve: THREE.Curve<THREE.Vector3>;
+  private duration: number;
+  private length: number;
   done = false;
 
-  constructor(
-    private curve: THREE.Curve<THREE.Vector3>,
-    color: THREE.ColorRepresentation,
-    private duration = 2.6,
-  ) {
+  constructor(curve: THREE.Curve<THREE.Vector3>, color: THREE.ColorRepresentation) {
+    this.curve = curve;
+    this.length = curve.getLength();
+    this.duration = THREE.MathUtils.clamp(this.length / 4, 3, 6.5);
     const { tex } = materials();
-    for (let i = 0; i < 6; i++) {
-      const mat = new THREE.SpriteMaterial({ map: tex.glow, color: new THREE.Color(color).multiplyScalar(i === 0 ? 3 : 2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+    for (let i = 0; i < TRAIL; i++) {
+      const mat = new THREE.SpriteMaterial({ map: tex.glow, color: new THREE.Color(color).multiplyScalar(i === 0 ? 3.2 : 2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
       const s = new THREE.Sprite(mat);
-      s.scale.setScalar(i === 0 ? 0.55 : 0.4 - i * 0.05);
+      s.scale.setScalar(i === 0 ? 1 : 0.62 * (1 - i / TRAIL) + 0.1);
       this.sprites.push(s);
       this.group.add(s);
     }
@@ -369,13 +376,16 @@ export class Packet {
       this.group.visible = false;
       return;
     }
-    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    // even speed along the real arc length, easing only over the first and last few percent
+    const e = t < 0.08 ? (t * t) / 0.16 : t > 0.92 ? 1 - ((1 - t) * (1 - t)) / 0.16 : t;
+    const gap = 0.35 / this.length;
     this.sprites.forEach((s, i) => {
-      const tt = Math.max(0, e - i * 0.018);
-      this.curve.getPoint(tt, s.position);
-      s.position.y += 0.08;
-      (s.material as THREE.SpriteMaterial).opacity = (1 - i / 6) * Math.min(1, (1 - t) * 4, t * 8);
+      this.curve.getPointAt(THREE.MathUtils.clamp(e - i * gap, 0, 1), s.position);
+      // float above the conduit so the paving never hides the glow
+      s.position.y += 0.5;
+      (s.material as THREE.SpriteMaterial).opacity = (1 - i / TRAIL) * Math.min(1, (1 - t) * 5, t * 10);
     });
+    this.sprites[0].scale.setScalar(1 * (0.9 + Math.sin(this.age * 14) * 0.1));
   }
 
   dispose() {

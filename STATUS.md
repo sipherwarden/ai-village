@@ -40,24 +40,29 @@ in a browser against a throwaway hub with the Simulation Lab on, plus `npm run t
   (see docs/SHOP.md). `shop.config.json` is empty, so this build is browse-only until then.
 - Liquid Glass styling across the HUD, drawers, shop, badges and controls.
 
-## Implemented, not fully verified
+## Verified in the app (simulation, browser screenshots)
 
-- **Handoff packets** travel the conduits on `handoff` events (seen in the world lab; not yet
-  confirmed by screenshot inside the app).
-- **Kiosk mode**: 1.35× badges, dimmer, slow pixel drift, large clock. Not tested from 6 ft on a
-  real iPad.
-- **Time of day** (night, dusk, dawn, day, or auto by clock): all four presets exist; night and day
-  were seen, dusk and dawn not screenshotted.
-- **Light theme**: HUD has light tokens; not screenshotted.
-- **Reduce motion**: disables camera easing and drifting particles; characters still animate
-  because their motion carries state.
+- **Handoff packets** travel the conduits on real `handoff` events: confirmed in the app after
+  fixing them (they now float above the path at an even pace, 3 to 6.5 seconds per handoff,
+  instead of hugging the ground and crossing in about a second).
+- **Kiosk mode**: large clock and status line, Simulation Lab badge, 1.35x badges, Dim and Exit
+  controls that fade when idle. Not yet tried from 6 ft on a real iPad.
+- **Time of day**: night, dusk, dawn and day all seen. The first setting now applies immediately
+  instead of fading in from night.
+- **Light theme**: frosted light glass with dark text on the HUD and notifications.
+- **Reduce motion**: disables camera easing, drifting particles and idle fidgets; characters still
+  animate because their motion carries state.
+
+Fixed in this pass: the island particle shader (petals, snow, embers, fireflies) failed to
+compile since the island release, so no particles rendered; all rim-lit materials now share one
+compiled shader instead of one per agent colour.
 
 ## Publishing readiness
 
-- MIT license, SECURITY.md, git repository (no commits yet), line-ending rules so the macOS/Linux
+- MIT license, SECURITY.md, public GitHub repository, line-ending rules so the macOS/Linux
   launcher keeps LF.
 - Fresh-install test: the files git would publish were exported to an empty folder, then
-  `npm install`, typecheck, the 7 server tests, the first-run build, password setup, the default
+  `npm install`, typecheck, the server tests, the first-run build, password setup, the default
   agents and secret storage all worked (Windows 11).
 - Cross-platform launcher (`npm start`, `start-village.cmd`, `start-village.sh`) and secret storage
   (DPAPI on Windows, AES-256-GCM key file on macOS and Linux). The portable backend is covered by
