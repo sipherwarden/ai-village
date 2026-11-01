@@ -23,6 +23,9 @@ export function isPrivate(ip: string) {
   return l === '::1' || l.startsWith('fe80:') || l.startsWith('fc') || l.startsWith('fd');
 }
 
+const MAX_FAILURES = 10;
+const LOCKOUT_MS = 5 * 60_000;
+
 interface PasswordRecord {
   salt: string;
   hash: string;
@@ -55,14 +58,21 @@ export class Auth {
     return timingSafeEqual(got, Buffer.from(rec.hash, 'hex'));
   }
 
-  /** Simple per-IP rate limit: 6 attempts per 5 minutes. */
-  allowAttempt(ip: string) {
-    const now = Date.now();
-    const list = (this.attempts.get(ip) ?? []).filter((t) => now - t < 5 * 60_000);
-    if (list.length >= 6) return false;
-    list.push(now);
+  /** Per-IP lockout: after 10 wrong passwords within 5 minutes, wait until the oldest one ages out. */
+  allowAttempt(ip: string, now = Date.now()) {
+    const list = (this.attempts.get(ip) ?? []).filter((t) => now - t < LOCKOUT_MS);
     this.attempts.set(ip, list);
-    return true;
+    return list.length < MAX_FAILURES;
+  }
+
+  /** Only wrong passwords count toward the lockout. */
+  recordFailure(ip: string, now = Date.now()) {
+    this.attempts.set(ip, [...(this.attempts.get(ip) ?? []), now]);
+  }
+
+  /** A correct password clears the count for that address. */
+  recordSuccess(ip: string) {
+    this.attempts.delete(ip);
   }
 
   createSession(ua: string | null) {

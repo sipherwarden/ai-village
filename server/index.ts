@@ -211,8 +211,12 @@ app.post<{ Body: { password?: string } }>('/api/auth/setup', async (req, reply) 
 });
 
 app.post<{ Body: { password?: string } }>('/api/auth/login', async (req, reply) => {
-  if (!auth.allowAttempt(req.ip)) return bad(reply, 429, 'Too many attempts. Wait a few minutes.');
-  if (!auth.verify(String(req.body?.password ?? ''))) return bad(reply, 401, 'Wrong password.');
+  if (!auth.allowAttempt(req.ip)) return bad(reply, 429, 'Too many wrong passwords. Wait 5 minutes.');
+  if (!auth.verify(String(req.body?.password ?? ''))) {
+    auth.recordFailure(req.ip);
+    return bad(reply, 401, 'Wrong password.');
+  }
+  auth.recordSuccess(req.ip);
   setSessionCookie(req, reply);
   return { ok: true };
 });
