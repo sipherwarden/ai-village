@@ -12,6 +12,7 @@ import { STATE_LABEL } from '../lib/format.ts';
 import { VillageRuntime, type AgentView } from '../engine/runtime.ts';
 import { useLayout } from './ui.tsx';
 import type { TimeOfDay } from '../engine/world.ts';
+import { ISLAND_SCALE } from '../engine/terrain.ts';
 import type { Emote, Island } from '../../../shared/cosmetics.ts';
 
 export type Quality = 'high' | 'balanced' | 'saver';
@@ -33,7 +34,7 @@ const FRAME_POINTS = [
   [0, 4.2, -11.2],
   [0, 5.6, -0.6],
   [0.6, -5.4, 0.8],
-].map(([x, y, z]) => new THREE.Vector3(x, y, z));
+].map(([x, y, z]) => new THREE.Vector3(x, y, z).multiplyScalar(ISLAND_SCALE));
 /** On tall screens: just the four homes and the spire, so the village fills the width instead of shrinking. */
 const HOME_POINTS = [
   [-9.4, 0.4, -1.2],
@@ -41,14 +42,14 @@ const HOME_POINTS = [
   [0, 4.0, -9.4],
   [0, 5.6, -0.6],
   [0, 0, 5.2],
-].map(([x, y, z]) => new THREE.Vector3(x, y, z));
+].map(([x, y, z]) => new THREE.Vector3(x, y, z).multiplyScalar(ISLAND_SCALE));
 
 /** Picks the camera distance and target that fit the island into the unobstructed part of the view. */
 function overview(aspect: number, insets: Insets, w: number, h: number, tall: boolean) {
   const cam = new THREE.PerspectiveCamera(FOV, aspect, 0.5, 500);
   const free = { x0: insets.left / w, x1: 1 - insets.right / w, y0: insets.top / h, y1: 1 - insets.bottom / h };
   const points = tall ? HOME_POINTS : FRAME_POINTS;
-  const target = tall ? new THREE.Vector3(0, 0.6, -1.6) : new THREE.Vector3(0, -0.4, 0.4);
+  const target = (tall ? new THREE.Vector3(0, 0.6, -1.6) : new THREE.Vector3(0, -0.4, 0.4)).multiplyScalar(ISLAND_SCALE);
   const dir = new THREE.Vector3(0, Math.sin(PITCH), Math.cos(PITCH));
   const fits = (d: number) => {
     cam.position.copy(target).addScaledVector(dir, d);

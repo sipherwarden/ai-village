@@ -12,6 +12,8 @@ import { Batch, fbm, noise2, rng, squirclePoints } from './util.ts';
 
 export const HALF = 8.6;
 export const ISLAND_ROTATION = Math.PI / 4;
+/** The island is drawn this much larger than its authored layout; buildings and characters keep their size. */
+export const ISLAND_SCALE = 1.3;
 /** Screen-aligned layout position (sx right, sd away from the camera) to island x/z. */
 export const I = (sx: number, sd: number) => new THREE.Vector2((sx + sd) * Math.SQRT1_2, (sx - sd) * Math.SQRT1_2);
 /** Yaw that turns a local +z front toward the camera. */

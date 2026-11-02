@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import type { AgentState, Archetype } from '../../../shared/types.ts';
 import { bokeh, conduit, haze, motes, Packet, ribbon, skyDome, stars, waterfallMaterial, waterMaterial } from './fx.ts';
 import { atelier, forge, hexPad, nexus, observatory, spire, type Building, type Resident } from './pavilions.ts';
-import { buildTerrain, FACE_CAMERA, ISLAND_ROTATION, LAYOUT, type Site } from './terrain.ts';
+import { buildTerrain, FACE_CAMERA, ISLAND_ROTATION, ISLAND_SCALE, LAYOUT, type Site } from './terrain.ts';
 import { IDENTITY } from './creature.ts';
 import { materials } from './materials.ts';
 import { applyTheme, THEMES, type Theme } from './themes.ts';
@@ -87,7 +87,7 @@ export class World {
   private target: TimeOfDay = 'night';
   private tmpA = new THREE.Color();
   private owned: (THREE.BufferGeometry | THREE.Material)[] = [];
-  readonly fog = new THREE.Fog('#060914', 48, 120);
+  readonly fog = new THREE.Fog('#060914', 48 * ISLAND_SCALE, 120 * ISLAND_SCALE);
   private theme: Theme;
   private looks: Record<TimeOfDay, Look>;
 
@@ -102,6 +102,7 @@ export class World {
     this.fall.uniforms.uColor.value.set(this.theme.fall);
     this.root.add(this.sky.mesh, this.starField.points, this.bokehField.group, this.hazeField.group);
     this.island.rotation.y = ISLAND_ROTATION;
+    this.island.scale.setScalar(ISLAND_SCALE);
     this.root.add(this.island);
 
     // ---- lights
@@ -112,12 +113,13 @@ export class World {
     const size = opts.shadows === 'high' ? 2048 : 1024;
     this.moon.shadow.mapSize.set(size, size);
     const cam = this.moon.shadow.camera;
-    cam.left = -15;
-    cam.right = 15;
-    cam.top = 15;
-    cam.bottom = -15;
+    const reach = 15 * ISLAND_SCALE;
+    cam.left = -reach;
+    cam.right = reach;
+    cam.top = reach;
+    cam.bottom = -reach;
     cam.near = 1;
-    cam.far = 60;
+    cam.far = 60 * ISLAND_SCALE;
     this.moon.shadow.bias = -0.0004;
     this.moon.shadow.normalBias = 0.035;
     this.rim = new THREE.DirectionalLight('#a5b4fc', 1.0);
@@ -152,13 +154,14 @@ export class World {
       this.mist.push(mist);
       this.island.add(mist);
     }
-    this.bounce = new THREE.PointLight(this.theme.waterGlow, 3, 7, 1.6);
+    this.bounce = new THREE.PointLight(this.theme.waterGlow, 3, 7 * ISLAND_SCALE, 1.6);
     this.bounce.position.set(LAYOUT.pool.x, 0.7, LAYOUT.pool.y);
     this.island.add(this.bounce);
 
     // ---- spire
     const sp = LAYOUT.spire;
     this.spire.group.position.set(sp.at.x, sp.y, sp.at.y);
+    this.spire.group.scale.setScalar(1 / ISLAND_SCALE);
     this.island.add(this.spire.group);
 
     // ---- homes
@@ -172,7 +175,7 @@ export class World {
     LAYOUT.pads.forEach((site, i) => this.addSlot(`pad-${i}`, 'pad', hexPad(), site));
 
     if (opts.particles) {
-      this.moteField = motes(this.theme.particles);
+      this.moteField = motes({ ...this.theme.particles, radius: 13 * ISLAND_SCALE });
       this.root.add(this.moteField.points);
     }
   }
@@ -181,11 +184,12 @@ export class World {
     const g = building?.group ?? new THREE.Group();
     g.position.set(site.at.x, site.y, site.at.y);
     g.rotation.y = site.yaw;
+    g.scale.setScalar(1 / ISLAND_SCALE);
     this.island.add(g);
     g.updateMatrixWorld(true);
     const local = building?.home ?? V3(0, 0, 0);
     const home = local.clone().applyMatrix4(g.matrix);
-    const badge = V3(home.x, site.y + (building?.roof ?? 2), home.z);
+    const badge = V3(home.x, site.y + (building?.roof ?? 2) / ISLAND_SCALE, home.z);
     if (building && kind !== 'pad') {
       // badge over the roof line, nudged toward the porch so it stays near the resident
       const c = V3(site.at.x, 0, site.at.y);
@@ -278,7 +282,7 @@ export class World {
       const route = [V3(s.x + Math.sin(a) * 1.75, 0.03, s.y + Math.cos(a) * 1.75), home.clone().setY(0.03)];
       const c = conduit(route);
       this.island.add(c.mesh);
-      this.plazaSlots[i] = { id: `plaza-${i}`, kind: 'plaza', building: null, home, yaw: FACE_CAMERA, badge: home.clone().setY(2), route, conduit: { mesh: c.mesh, mat: c.mat } };
+      this.plazaSlots[i] = { id: `plaza-${i}`, kind: 'plaza', building: null, home, yaw: FACE_CAMERA, badge: home.clone().setY(2 / ISLAND_SCALE), route, conduit: { mesh: c.mesh, mat: c.mat } };
     }
     return this.plazaSlots[i];
   }

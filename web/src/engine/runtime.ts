@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { Accessory, AgentState, Archetype } from '../../../shared/types.ts';
 import { Creature } from './creature.ts';
 import { World, type Resident, type Slot, type WorldOptions } from './world.ts';
+import { ISLAND_SCALE } from './terrain.ts';
 import type { Emote } from '../../../shared/cosmetics.ts';
 
 export interface AgentView {
@@ -57,6 +58,7 @@ export class VillageRuntime {
         const creature = new Creature({ id: a.id, archetype: a.archetype, color: a.color, accessory: a.accessory, scale: (a.scale ?? 1) * CHARACTER_SCALE });
         const holder = new THREE.Group();
         holder.add(creature.group);
+        holder.scale.setScalar(1 / ISLAND_SCALE);
         this.world.island.add(holder);
         creature.setState(a.state, true);
         creature.setLively(this.lively);
